@@ -435,7 +435,40 @@ def _measured_hours(doc):
 	return hours
 
 
+def apply_final_status(doc) -> bool:
+	"""
+	HR's decision wins over the punch-based calculation.
+
+	When HR (or the rules job) fills "Final Status" on an Attendance, keep that
+	status and stop recalculating from punches. "Final Leave Type" set to the
+	text "None" clears the leave type; any other value replaces it. A half day
+	taken as leave always has its other half Present, so payroll deducts only
+	half a day.
+	"""
+	final_status = doc.get("custom_final_status")
+	if not final_status:
+		return False
+
+	doc.status = final_status
+	final_leave_type = doc.get("custom_final_leave_type")
+	if final_leave_type == "None":
+		doc.leave_type = None
+		doc.leave_application = None
+	elif final_leave_type:
+		doc.leave_type = final_leave_type
+		doc.leave_application = None
+	elif final_status not in ("On Leave", "Half Day"):
+		doc.leave_type = None
+
+	if final_status == "Half Day" and doc.leave_type:
+		doc.half_day_status = "Present"
+	return True
+
+
 def set_status(self, method):
+	if apply_final_status(self):
+		return
+
 	from valence.api import get_applicable_shift, get_day_type
 
 	shift = get_applicable_shift(self.employee, self.attendance_date) or self.shift
@@ -838,9 +871,13 @@ def process_attendance_offdays():
 def resolve_no_punch_status(employee, attendance_date, attendance):
     from valence.api import get_day_type
 
-    current = frappe.db.get_value(
-        "Attendance", attendance, ["status", "leave_application", "attendance_request"], as_dict=True
-    )
+    fields = ["status", "leave_application", "attendance_request"]
+    has_final_status = frappe.get_meta("Attendance").has_field("custom_final_status")
+    if has_final_status:
+        fields.append("custom_final_status")
+    current = frappe.db.get_value("Attendance", attendance, fields, as_dict=True)
+    if current and has_final_status and current.custom_final_status:
+        return current.status
     if current:
         if current.leave_application or current.status == "On Leave":
             return current.status or "On Leave"
