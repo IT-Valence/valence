@@ -4,7 +4,7 @@
  "creation": "2025-04-17 14:19:56.309236",
  "doctype": "DocType",
  "engine": "InnoDB",
-  "field_order": [
+ "field_order": [
   "section_break_fptb",
   "use_late_coming_rules",
   "short_leave_logic",
@@ -22,6 +22,7 @@
   "comp_off_section",
   "comp_off_enabled",
   "comp_off_auto_credit",
+  "comp_off_last_processed_date",
   "column_break_comp_off",
   "comp_off_leave_type",
   "comp_off_rules"
@@ -141,6 +142,13 @@
    "fieldname": "comp_off_auto_credit",
    "fieldtype": "Check",
    "label": "Auto Credit Comp Off on Attendance Submit/Update"
+  },
+  {
+   "description": "Last attendance date successfully processed by the daily Comp Off earning job. Used to catch up on any missed days if the scheduler was down.",
+   "fieldname": "comp_off_last_processed_date",
+   "fieldtype": "Date",
+   "label": "Comp Off Last Processed Date",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_comp_off",
