@@ -12,6 +12,9 @@ FIELDS = {
 			description="After this date only HR can approve or reject. Super HOD gets the same number of days more."),
 	],
 	"Leave Type": [
+		dict(fieldname="custom_not_for_esi_covered", label="Not for ESI-covered staff", fieldtype="Check",
+			insert_after="custom_working_days_per_leave",
+			description="Quarterly credit skips employees whose salary deducts ESI (ESI pays their sickness benefit)."),
 		dict(fieldname="custom_leave_notice_section", label="Advance notice", fieldtype="Section Break", insert_after="custom_not_for_esi_covered"),
 		dict(fieldname="custom_notice_days", label="Apply at least (days before)", fieldtype="Int", insert_after="custom_leave_notice_section",
 			description="Applications with less notice are Late and need HR. 0 = on or before the first day."),
@@ -30,16 +33,20 @@ LEAVE_TYPE_DEFAULTS = {
 
 def after_migrate():
 	created = False
+	esi_field_created = False
 	for dt, fields in FIELDS.items():
 		for f in fields:
 			if frappe.db.exists("Custom Field", {"dt": dt, "fieldname": f["fieldname"]}):
 				continue
-			if dt == "Leave Type" and f["fieldname"] == "custom_leave_notice_section" and not frappe.get_meta("Leave Type").has_field("custom_not_for_esi_covered"):
-				f = dict(f, insert_after="custom_working_days_per_leave")
 			frappe.get_doc(dict(doctype="Custom Field", dt=dt, module="Valence", **f)).insert(ignore_permissions=True)
-			created = created or dt == "Leave Type"
+			if f["fieldname"] == "custom_not_for_esi_covered":
+				esi_field_created = True
+			elif dt == "Leave Type":
+				created = True
 	frappe.clear_cache(doctype="Leave Application")
 	frappe.clear_cache(doctype="Leave Type")
+	if esi_field_created and frappe.db.exists("Leave Type", "Sick Leave"):
+		frappe.db.set_value("Leave Type", "Sick Leave", "custom_not_for_esi_covered", 1, update_modified=False)
 	if created:
 		other = dict(custom_notice_days=1, custom_allow_apply_after=1, custom_apply_after_grace_days=2)
 		for lt in frappe.get_all("Leave Type", pluck="name"):
