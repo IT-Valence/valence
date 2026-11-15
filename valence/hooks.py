@@ -225,7 +225,10 @@ doc_events = {
 		"validate":"valence.valence.doc_events.capex_routing.purchase_receipt_validate"
 	},
 	"Purchase Invoice":{
-		"validate":"valence.valence.doc_events.capex_routing.purchase_receipt_validate"
+		"validate":["valence.valence.doc_events.capex_routing.purchase_receipt_validate","valence.valence.doc_events.landed_cost.purchase_invoice_validate"],
+		"on_submit":"valence.valence.doc_events.landed_cost.purchase_invoice_on_submit",
+		"before_cancel":"valence.valence.doc_events.landed_cost.purchase_invoice_before_cancel",
+		"on_cancel":"valence.valence.doc_events.landed_cost.purchase_invoice_on_cancel",
 	},
 	"Purchase Order":{
 		"validate":"valence.valence.doc_events.capex_routing.purchase_order_validate"
