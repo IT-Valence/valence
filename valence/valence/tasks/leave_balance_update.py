@@ -122,8 +122,35 @@ def get_manual_working_days(employee, leave_type, start_date, end_date):
 	return flt(record) if record else None
 
 
+def is_esi_covered(employee, on_date) -> bool:
+	"""True when the employee's salary assignment on that date deducts ESI
+	(custom_vl_esi set to a basis such as "Basic" rather than "None")."""
+	meta = frappe.get_meta("Salary Structure Assignment")
+	if not meta.has_field("custom_vl_esi"):
+		return False
+	basis = frappe.db.get_value(
+		"Salary Structure Assignment",
+		{"employee": employee, "docstatus": 1, "from_date": ["<=", on_date]},
+		"custom_vl_esi",
+		order_by="from_date desc",
+	)
+	return (basis or "None").strip().lower() not in ("", "none", "no", "n", "0")
+
+
+def excluded_for_esi(leave_type, employee, on_date) -> bool:
+	"""Leave types ticked "Not for ESI-covered staff" (e.g. Sick Leave, since
+	ESI pays sickness benefit) are not credited to ESI-covered employees."""
+	if not frappe.get_meta("Leave Type").has_field("custom_not_for_esi_covered"):
+		return False
+	if not frappe.db.get_value("Leave Type", leave_type, "custom_not_for_esi_covered"):
+		return False
+	return is_esi_covered(employee, on_date)
+
+
 def credit_leave_for_employee(employee, company, leave_type, divisor, working_days, quarter_start, quarter_end):
 	if not divisor:
+		return
+	if excluded_for_esi(leave_type, employee, quarter_end):
 		return
 
 	# Idempotency guard — don't double-credit if this employee/leave_type/
