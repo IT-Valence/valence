@@ -1,7 +1,7 @@
 """Mark attendance from biometric punches without shift rosters.
 
 Runs daily (see hooks.py) for the last LOOKBACK_DAYS days, up to the last
-day whose punches have fully synced (see last_complete_day),
+day that can be finalised (see last_complete_day: two days after),
 from "Punch attendance from" in Attendance Settings. It only creates
 attendance where none exists, so leave, On Duty and HR's corrections are
 never overwritten, and punches that reach ERP late are picked up on a later
@@ -20,6 +20,8 @@ from frappe.utils import add_days, get_datetime, getdate, today
 from valence.valence.punch_attendance import rules as R
 
 LOOKBACK_DAYS = 10
+CONTEXT_DAYS = 2
+CUTOFF = datetime.strptime("08:00", "%H:%M").time()
 
 
 def _codes(text):
@@ -53,11 +55,13 @@ def run_for_dates(from_date, to_date, dry_run=1):
 
 
 def last_complete_day():
-	"""Latest day whose punches have fully reached ERP.
+	"""Latest day that can be finalised.
 
-	A day counts as complete once the sync has brought in punches up to 08:00
-	the next morning (after night shifts end). This stops a half-synced day
-	from being marked with missing punches.
+	Punches are grouped using two days of context on each side, so a day is
+	finalised once punches up to 08:00 two days later have reached ERP (for
+	example, Monday after Wednesday morning's sync). Without that context a
+	next-morning punch could be attached to the wrong day, and the result
+	would change as more punches synced.
 	"""
 	last = frappe.db.sql(
 		"select max(time) from `tabEmployee Checkin` where ifnull(device_id, '') != 'HR-CORRECTION'"
@@ -65,8 +69,8 @@ def last_complete_day():
 	if not last:
 		return getdate("1900-01-01")
 	last = get_datetime(last)
-	day = last.date() - timedelta(days=1)
-	if last.time() < datetime.strptime("08:00", "%H:%M").time():
+	day = last.date() - timedelta(days=CONTEXT_DAYS)
+	if last.time() < CUTOFF:
 		day -= timedelta(days=1)
 	return day
 
@@ -127,7 +131,13 @@ def process(from_date, to_date, dry_run=False):
 	for c in frappe.get_all(
 		"Employee Checkin",
 		filters={
-			"time": ["between", [datetime.combine(add_days(from_date, -1), datetime.min.time()), datetime.combine(add_days(to_date, 1), datetime.min.time()) + timedelta(hours=12)]],
+			"time": [
+				"between",
+				[
+					datetime.combine(getdate(add_days(from_date, -CONTEXT_DAYS)), datetime.min.time()),
+					datetime.combine(getdate(add_days(to_date, CONTEXT_DAYS)), CUTOFF),
+				],
+			],
 			"skip_auto_attendance": 0,
 		},
 		fields=["employee", "time"],
