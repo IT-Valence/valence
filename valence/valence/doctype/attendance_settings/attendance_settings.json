@@ -13,6 +13,7 @@
   "leave_creation_window_days",
   "super_hod_working_days_threshold",
   "leave_hod_decision_days",
+  "leave_rules_from",
   "short_leave_application_section",
   "short_leave_max_duration_hours",
   "column_break_slas1",
@@ -216,13 +217,19 @@
    "label": "HOD / Super HOD decision days",
    "default": "3",
    "description": "Days the HOD (and then the Super HOD) has to decide on a leave, or until the leave starts if sooner. After that only HR can decide."
+  },
+  {
+   "fieldname": "leave_rules_from",
+   "fieldtype": "Date",
+   "label": "Leave notice rules from",
+   "description": "From this application date: late applications and decisions past the deadline need HR, and Earned Leave can't be applied after it starts (except by HR). Empty = not in force; applications are still tagged."
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-16 12:00:00.000000",
+ "modified": "2026-11-16 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Valence",
  "name": "Attendance Settings",
