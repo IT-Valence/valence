@@ -105,6 +105,7 @@ jinja = {
 # after_install = "valence.install.after_install"
 after_migrate = [
     "valence.valence.setup.leave_workflow.after_migrate",
+    "valence.valence.leave_planning.setup.after_migrate",
     "valence.valence.setup.od_wfh_workflow.after_migrate",
     "valence.valence.monkey_patch.chemical_stock_entry.after_migrate",
     "valence.valence.setup.short_leave_workflow.after_migrate",
@@ -265,6 +266,7 @@ doc_events = {
       "validate": [
           "valence.valence.doc_events.leave_application.validate",
           "valence.valence.doc_events.comp_off_usage.validate_comp_off_application",
+          "valence.valence.leave_planning.application.validate",
       ],
       "before_submit": "valence.valence.doc_events.leave_application.before_submit",
       "on_update": "valence.valence.doc_events.leave_application.on_update",
