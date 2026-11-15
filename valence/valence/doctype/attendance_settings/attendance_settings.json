@@ -25,7 +25,13 @@
   "comp_off_last_processed_date",
   "column_break_comp_off",
   "comp_off_leave_type",
-  "comp_off_rules"
+  "comp_off_rules",
+  "punch_attendance_section",
+  "punch_attendance_enabled",
+  "punch_attendance_from",
+  "column_break_punch",
+  "attendance_exempt_employees",
+  "security_employees"
  ],
  "fields": [
   {
@@ -168,13 +174,47 @@
    "fieldtype": "Table",
    "label": "Comp Off Rules",
    "options": "Comp Off Rule"
+  },
+  {
+   "fieldname": "punch_attendance_section",
+   "fieldtype": "Section Break",
+   "label": "Attendance from punches (no roster)"
+  },
+  {
+   "fieldname": "punch_attendance_enabled",
+   "fieldtype": "Check",
+   "label": "Mark attendance from punches daily",
+   "default": "0",
+   "description": "Creates attendance from biometric punches every morning for the last 10 days, only where no attendance exists. Days without punches stay unmarked."
+  },
+  {
+   "fieldname": "punch_attendance_from",
+   "fieldtype": "Date",
+   "label": "Punch attendance from",
+   "depends_on": "punch_attendance_enabled"
+  },
+  {
+   "fieldname": "column_break_punch",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "attendance_exempt_employees",
+   "fieldtype": "Small Text",
+   "label": "Exempt from attendance (employee IDs)",
+   "description": "Marked Present on every working day. One ID per line or comma separated."
+  },
+  {
+   "fieldname": "security_employees",
+   "fieldtype": "Small Text",
+   "label": "Security staff (employee IDs)",
+   "description": "Use the security cut-offs: full day 6h50, short leave 5h, half day 3h50."
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-18 17:55:00.000000",
+ "modified": "2026-11-16 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Valence",
  "name": "Attendance Settings",
