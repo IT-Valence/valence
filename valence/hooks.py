@@ -317,6 +317,9 @@ scheduler_events = {
         "45 10 * * *": [
             "valence.valence.punch_attendance.engine.run_daily",
         ],
+        "0 9 5 * *": [
+            "valence.valence.retainer.invoices.run_monthly",
+        ],
         "0 4 * * THU": [
 			"valence.api.sales_invoice_payment_remainder",
 		],
