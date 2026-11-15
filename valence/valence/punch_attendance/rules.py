@@ -4,8 +4,10 @@ Pure functions only (no Frappe), so they can be tested on their own.
 
 How a day is decided:
 - Punches are deduplicated (within 60 seconds) and grouped into duties
-  without a roster. Grouping minimises a cost: single punches, very short
-  spans and gaps over 13.5 hours are expensive; normal 8-hour spans are free.
+  without a roster. Grouping minimises a cost: single punches and very short
+  spans are expensive; normal 8-hour spans are free. Two punches more than
+  13.5 hours apart are never joined (that would depend on which later
+  punches had synced), so a missed OUT shows as a single punch for HR.
 - A duty with a double punch at a shift change (or one punch in the middle
   of two full shifts) is split into two duties.
 - A duty belongs to the day it starts; duties starting before 04:00 belong
@@ -63,7 +65,7 @@ def pair(ts):
 			elif span < 2.5:
 				cost = 6
 			elif max(gaps) > LONG_GAP:
-				cost = 8
+				cost = 25
 			elif span > LONG_GAP:
 				cost = 1
 			elif span > 9.5:
