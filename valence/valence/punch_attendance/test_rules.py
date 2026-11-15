@@ -48,6 +48,15 @@ class TestPunchRules(unittest.TestCase):
 		self.assertEqual(status, "Absent")
 		self.assertIn("Single punch", flags)
 
+	def test_no_join_over_long_gap(self):
+		# evening IN, next morning IN: two single punches, whatever comes later
+		alone = R.duties_by_day([t(2, "16:10"), t(3, "08:55")])
+		later = R.duties_by_day([t(2, "16:10"), t(3, "08:55"), t(3, "17:00")])
+		for days in (alone, later):
+			status, hours, ot, used, flags = R.evaluate(days[date(2026, 11, 2)], False, 0)
+			self.assertEqual((status, hours), ("Absent", 0))
+			self.assertIn("Single punch", flags)
+
 	def test_weekly_off_counts_as_ot(self):
 		status, hours, ot, used, flags = self.day([t(1, "09:00"), t(1, "17:00")], off=True)
 		self.assertEqual((status, ot, used), ("Present", 1.0, False))
