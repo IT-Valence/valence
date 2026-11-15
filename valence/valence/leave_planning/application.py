@@ -65,7 +65,13 @@ def validate(doc, method=None):
 	doc.custom_leave_timing = timing
 	doc.custom_hod_deadline = deadline
 
-	if doc.is_new() and not r["allow_after"] and R.is_after_the_fact(applied_on, getdate(doc.from_date)) and not is_hr():
+	if (
+		doc.is_new()
+		and not r["allow_after"]
+		and R.is_after_the_fact(applied_on, getdate(doc.from_date))
+		and not is_hr()
+		and rules_apply(applied_on)
+	):
 		frappe.throw(
 			_("{0} must be applied for before it starts. Please contact HR.").format(doc.leave_type),
 			title=_("Apply in advance"),
@@ -74,9 +80,21 @@ def validate(doc, method=None):
 	enforce_deadline(doc, timing, applied_on)
 
 
+def rules_from():
+	value = frappe.db.get_single_value("Attendance Settings", "leave_rules_from")
+	return getdate(value) if value else None
+
+
+def rules_apply(applied_on) -> bool:
+	"""HR-only rules apply to applications made on or after Attendance
+	Settings → "Leave notice rules from". Empty means not in force yet."""
+	start = rules_from()
+	return bool(start) and getdate(applied_on) >= start
+
+
 def enforce_deadline(doc, timing, applied_on):
 	before = doc.get_doc_before_save()
-	if not before or is_hr():
+	if not before or is_hr() or not rules_apply(applied_on):
 		return
 	old, new = before.get("workflow_state"), doc.get("workflow_state")
 	if old not in (PENDING_HOD, PENDING_SUPER_HOD) or new == old or new not in DECISIONS:
