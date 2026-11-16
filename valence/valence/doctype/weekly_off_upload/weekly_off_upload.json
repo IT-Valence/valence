@@ -1,0 +1,154 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:WOU-{#####}",
+ "creation": "2026-11-16 12:00:00.000000",
+ "description": "Upload employees' weekly offs from Excel. Saving checks the file; submitting adds the dates to each employee's weekly-off holiday list and re-marks their attendance.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "upload_file",
+  "replace_existing",
+  "column_break_1",
+  "employees_count",
+  "days_count",
+  "has_errors",
+  "section_result",
+  "result",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "upload_file",
+   "fieldtype": "Attach",
+   "label": "Excel or CSV file",
+   "reqd": 1,
+   "description": "Two columns: <b>Employee</b> (code, e.g. 7045) and <b>Weekly Off Date</b>. One row per weekly off. Other columns (such as Employee Name) are ignored, and rows without a date are skipped."
+  },
+  {
+   "fieldname": "replace_existing",
+   "fieldtype": "Check",
+   "label": "Replace weekly offs already entered for these employees in these months",
+   "default": "1",
+   "description": "Festival holidays are never removed."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employees_count",
+   "fieldtype": "Int",
+   "label": "Employees",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "days_count",
+   "fieldtype": "Int",
+   "label": "Weekly offs",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "has_errors",
+   "fieldtype": "Check",
+   "label": "Has errors",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "section_result",
+   "fieldtype": "Section Break",
+   "label": "Check"
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "Long Text",
+   "label": "Result",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Weekly Off Upload",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-11-16 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Valence",
+ "name": "Weekly Off Upload",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "delete": 1,
+   "print": 1,
+   "report": 1,
+   "export": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Head",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "delete": 1,
+   "print": 1,
+   "report": 1,
+   "export": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "delete": 1,
+   "print": 1,
+   "report": 1,
+   "export": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "delete": 1,
+   "print": 1,
+   "report": 1,
+   "export": 1,
+   "email": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
