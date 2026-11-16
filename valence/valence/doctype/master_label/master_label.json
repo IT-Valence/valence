@@ -1,0 +1,278 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:label_no",
+ "creation": "2026-11-16 18:00:00.000000",
+ "description": "Approved master label template (SOP S-QA-006, Annexure III). One record per Label No. from the Master Label Record register.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "label_no",
+  "revision",
+  "status",
+  "column_break_status",
+  "effective_date",
+  "approved_by",
+  "section_label",
+  "label_type",
+  "variant",
+  "customer",
+  "column_break_label",
+  "item",
+  "product_name",
+  "grade",
+  "section_print",
+  "printed_title",
+  "storage_condition",
+  "column_break_print",
+  "show_manufacturer",
+  "licence_no",
+  "neutral_label_no",
+  "hazard_text",
+  "section_source",
+  "master_document",
+  "source_file",
+  "column_break_source",
+  "register_sr_no",
+  "import_notes",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "description": "As in the register, e.g. L002-00 (label 002, revision 00).",
+   "fieldname": "label_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Label No.",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "revision",
+   "fieldtype": "Data",
+   "label": "Revision",
+   "read_only": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nApproved\nRetired",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.status!='Draft'",
+   "fieldname": "effective_date",
+   "fieldtype": "Date",
+   "label": "Effective Date"
+  },
+  {
+   "depends_on": "eval:doc.status!='Draft'",
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_label",
+   "fieldtype": "Section Break",
+   "label": "Which Label"
+  },
+  {
+   "fieldname": "label_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Label Type",
+   "options": "Product\nIdentification",
+   "reqd": 1
+  },
+  {
+   "default": "Standard",
+   "description": "Neutral = no Valence name/address (export under a neutral code). CLP = hazard label.",
+   "fieldname": "variant",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Variant",
+   "options": "Standard\nNeutral\nCLP",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.variant!='Standard'",
+   "description": "Only when this label is for one customer (e.g. a neutral-code export).",
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "column_break_label",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item",
+   "options": "Item"
+  },
+  {
+   "description": "Product name as written in the register.",
+   "fieldname": "product_name",
+   "fieldtype": "Data",
+   "label": "Product (Register)"
+  },
+  {
+   "fieldname": "grade",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Grade",
+   "options": "IP\nBP\nUSP\nEP\nIH\nNA",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_print",
+   "fieldtype": "Section Break",
+   "label": "Printed On The Label"
+  },
+  {
+   "description": "Title line printed on the label, without the grade. Saved in CAPITALS.",
+   "fieldname": "printed_title",
+   "fieldtype": "Data",
+   "label": "Printed Title"
+  },
+  {
+   "fieldname": "storage_condition",
+   "fieldtype": "Small Text",
+   "label": "Storage Condition"
+  },
+  {
+   "fieldname": "column_break_print",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Print the Valence logo and \"Manufactured in India by\" address.",
+   "fieldname": "show_manufacturer",
+   "fieldtype": "Check",
+   "label": "Show Manufacturer"
+  },
+  {
+   "default": "2014-OSP",
+   "fieldname": "licence_no",
+   "fieldtype": "Data",
+   "label": "Manufacturing Licence No."
+  },
+  {
+   "depends_on": "eval:doc.variant=='Neutral'",
+   "fieldname": "neutral_label_no",
+   "fieldtype": "Data",
+   "label": "Neutral Label No.",
+   "mandatory_depends_on": "eval:doc.variant=='Neutral' && doc.status=='Approved'"
+  },
+  {
+   "depends_on": "eval:doc.variant=='CLP'",
+   "description": "Hazard and precautionary statements (one per line), UN number and class.",
+   "fieldname": "hazard_text",
+   "fieldtype": "Text",
+   "label": "Hazard Statements"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_source",
+   "fieldtype": "Section Break",
+   "label": "Source And Review"
+  },
+  {
+   "description": "Signed master label (PDF/Word) as approved by QA.",
+   "fieldname": "master_document",
+   "fieldtype": "Attach",
+   "label": "Master Document"
+  },
+  {
+   "fieldname": "source_file",
+   "fieldtype": "Data",
+   "label": "Imported From",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_source",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "register_sr_no",
+   "fieldtype": "Int",
+   "label": "Register Sr. No.",
+   "read_only": 1
+  },
+  {
+   "description": "Things QA must check before approving (set by the import).",
+   "fieldname": "import_notes",
+   "fieldtype": "Small Text",
+   "label": "Review Notes",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-16 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Valence",
+ "name": "Master Label",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Quality Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Stock Manager"
+  },
+  {
+   "read": 1,
+   "role": "Manufacturing User"
+  }
+ ],
+ "search_fields": "product_name,item,grade,label_type",
+ "sort_field": "label_no",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "label_no",
+ "track_changes": 1
+}

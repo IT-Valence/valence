@@ -20,6 +20,12 @@
   "retestexpiry_date",
   "no_of_packages",
   "stock_entry_reference_name",
+  "labels_section",
+  "label_variant",
+  "customer",
+  "column_break_labels",
+  "product_label_no",
+  "identification_label_no",
   "spec_section",
   "ih",
   "ar_no_ih",
@@ -80,8 +86,9 @@
   },
   {
    "fieldname": "grade",
-   "fieldtype": "Data",
-   "label": "Grade"
+   "fieldtype": "Select",
+   "label": "Grade",
+   "options": "\nIP\nBP\nUSP\nEP\nIH\nNA"
   },
   {
    "fieldname": "released_b_no",
@@ -202,6 +209,46 @@
    "label": "No of Containers"
   },
   {
+   "fieldname": "labels_section",
+   "fieldtype": "Section Break",
+   "label": "Drum Labels"
+  },
+  {
+   "default": "Standard",
+   "description": "Neutral = no Valence name/address (neutral-code export). CLP = hazard label.",
+   "fieldname": "label_variant",
+   "fieldtype": "Select",
+   "label": "Label Variant",
+   "options": "Standard\nNeutral\nCLP"
+  },
+  {
+   "depends_on": "eval:doc.label_variant!='Standard'",
+   "description": "Only if this customer has its own master label.",
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "column_break_labels",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "From Master Label, by item and grade.",
+   "fieldname": "product_label_no",
+   "fieldtype": "Link",
+   "label": "Product Label No.",
+   "options": "Master Label",
+   "read_only": 1
+  },
+  {
+   "fieldname": "identification_label_no",
+   "fieldtype": "Link",
+   "label": "Identification Label No.",
+   "options": "Master Label",
+   "read_only": 1
+  },
+  {
    "fieldname": "inspected_by",
    "fieldtype": "Link",
    "label": "Inspected By\t",
@@ -289,7 +336,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-08-21 12:45:28.373976",
+ "modified": "2026-11-16 19:00:00.000000",
  "modified_by": "Administrator",
  "module": "Valence",
  "name": "Label Requisition Form",

@@ -1,0 +1,173 @@
+{
+ "actions": [],
+ "creation": "2026-11-16 19:00:00.000000",
+ "description": "Rules and sticker layout for drum labels on the Label Requisition Form.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "rules_section",
+  "require_master_label",
+  "container_weight_tolerance_kg",
+  "copies_section",
+  "product_labels_per_drum",
+  "column_break_copies",
+  "identification_labels_per_drum",
+  "size_section",
+  "page_layout",
+  "product_label_width_mm",
+  "product_label_height_mm",
+  "column_break_size",
+  "identification_label_width_mm",
+  "identification_label_height_mm",
+  "manufacturer_section",
+  "manufacturer_name",
+  "manufacturer_address",
+  "column_break_manufacturer",
+  "logo"
+ ],
+ "fields": [
+  {
+   "fieldname": "rules_section",
+   "fieldtype": "Section Break",
+   "label": "Rules"
+  },
+  {
+   "default": "0",
+   "description": "Turn on once QA has approved the Master Labels. When on, an LRF cannot be approved unless its product has an approved Product label for its grade.",
+   "fieldname": "require_master_label",
+   "fieldtype": "Check",
+   "label": "Require Approved Master Label To Approve LRF"
+  },
+  {
+   "default": "0",
+   "description": "Allowed difference between Observed Weight and Gross Weight before a container is marked Not Ok. 0 = must match exactly (as today).",
+   "fieldname": "container_weight_tolerance_kg",
+   "fieldtype": "Float",
+   "label": "Container Weight Tolerance (Kg)",
+   "precision": "3"
+  },
+  {
+   "fieldname": "copies_section",
+   "fieldtype": "Section Break",
+   "label": "Stickers Per Drum"
+  },
+  {
+   "default": "1",
+   "fieldname": "product_labels_per_drum",
+   "fieldtype": "Int",
+   "label": "Product Labels Per Drum"
+  },
+  {
+   "fieldname": "column_break_copies",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "identification_labels_per_drum",
+   "fieldtype": "Int",
+   "label": "Identification Labels Per Drum"
+  },
+  {
+   "fieldname": "size_section",
+   "fieldtype": "Section Break",
+   "label": "Sticker Size"
+  },
+  {
+   "default": "A4 Sheet",
+   "description": "A4 Sheet: stickers stacked on A4 pages. One Label Per Page: for a roll/thermal label printer (set the printer's paper to the label size).",
+   "fieldname": "page_layout",
+   "fieldtype": "Select",
+   "label": "Page Layout",
+   "options": "A4 Sheet\nOne Label Per Page"
+  },
+  {
+   "default": "190",
+   "fieldname": "product_label_width_mm",
+   "fieldtype": "Float",
+   "label": "Product Label Width (mm)"
+  },
+  {
+   "default": "100",
+   "fieldname": "product_label_height_mm",
+   "fieldtype": "Float",
+   "label": "Product Label Height (mm)"
+  },
+  {
+   "fieldname": "column_break_size",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "170",
+   "fieldname": "identification_label_width_mm",
+   "fieldtype": "Float",
+   "label": "Identification Label Width (mm)"
+  },
+  {
+   "default": "45",
+   "fieldname": "identification_label_height_mm",
+   "fieldtype": "Float",
+   "label": "Identification Label Height (mm)"
+  },
+  {
+   "fieldname": "manufacturer_section",
+   "fieldtype": "Section Break",
+   "label": "Manufacturer Block"
+  },
+  {
+   "default": "Valence Labs Pvt Ltd",
+   "fieldname": "manufacturer_name",
+   "fieldtype": "Data",
+   "label": "Manufacturer Name"
+  },
+  {
+   "default": "Vill. Jansui, Tehsil Rajpura,\nDistt. Patiala. (Punjab).",
+   "description": "As on the approved master labels. One line per printed line.",
+   "fieldname": "manufacturer_address",
+   "fieldtype": "Small Text",
+   "label": "Manufacturer Address"
+  },
+  {
+   "fieldname": "column_break_manufacturer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Leave empty to use /files/VLPL Logo.jpg.",
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-11-16 20:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Valence",
+ "name": "Labelling Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Quality Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Stock Manager"
+  },
+  {
+   "read": 1,
+   "role": "Manufacturing User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

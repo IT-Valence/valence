@@ -1,0 +1,112 @@
+{#- Drum stickers. Layout follows QA's master labels (SOP S-QA-006 Annexure III).
+    Data comes from valence.valence.labelling.drum_labels.get_drum_labels.
+    `which` is set by the print format: "all", "product" or "identification". -#}
+{%- set data = get_drum_labels(doc, which or "all") -%}
+{%- set s = data.settings -%}
+{%- set one_per_page = s.page_layout == "One Label Per Page" -%}
+<style>
+	.vl-sheet { font-family: Arial, Helvetica, sans-serif; color: #000; }
+	.vl-label {
+		position: relative; box-sizing: border-box; border: 1.2px solid #000; overflow: hidden;
+		margin: 0 auto 6mm auto; page-break-inside: avoid; background: #fff; max-width: 100%;
+	}
+	.vl-nw { white-space: nowrap; }
+	.vl-label.product { width: {{ s.product_label_width_mm }}mm; height: {{ s.product_label_height_mm }}mm; }
+	.vl-label.identification { width: {{ s.identification_label_width_mm }}mm; height: {{ s.identification_label_height_mm }}mm; }
+	{% if one_per_page %}.vl-label { margin: 0 auto; page-break-after: always; }{% endif %}
+	.vl-label table { width: 100%; border-collapse: collapse; }
+	.vl-label td { padding: 0.6mm 2mm; vertical-align: top; font-size: 10.5pt; line-height: 1.25; }
+	.vl-title { text-align: center; font-weight: bold; font-size: 14pt; padding: 1.2mm 2mm !important; border-bottom: 1.2px solid #000; }
+	.vl-b { font-weight: bold; }
+	.vl-u { text-decoration: underline; }
+	.vl-qr { text-align: right; width: 32mm; }
+	.vl-qr img { width: 28mm; height: 28mm; }
+	.vl-foot { position: absolute; left: 0; right: 0; bottom: 0; border-top: 1.2px solid #000; }
+	.vl-foot td { font-size: 10pt; vertical-align: middle; padding: 1mm 2mm; }
+	.vl-logo img { height: 10.7mm; width: auto; }
+	.vl-small { font-size: 9.5pt; }
+	.vl-right { text-align: left; white-space: nowrap; width: 46mm; }
+	.vl-hazard td { font-size: 8.5pt; padding: 0.2mm 2mm; }
+	.vl-watermark {
+		position: absolute; top: 40%; left: -10%; width: 120%; text-align: center; transform: rotate(-12deg);
+		font-size: 20pt; font-weight: bold; color: rgba(200, 0, 0, 0.35); letter-spacing: 1px;
+	}
+</style>
+
+<div class="vl-sheet">
+{%- for l in data.labels %}
+	<div class="vl-label {{ l.kind }}">
+		{%- if data.watermark %}<div class="vl-watermark">{{ data.watermark }}</div>{% endif %}
+		<table><tr><td class="vl-title">{{ l.title }}</td></tr></table>
+
+		{%- if l.kind == "product" %}
+		<table>
+			<tr>
+				<td class="vl-b vl-nw" style="width:44%">Batch No.: {{ l.batch_no }}</td>
+				<td class="vl-b vl-nw" style="width:30%">Gross Wt.: {{ l.gross }} KG</td>
+				<td class="vl-qr" rowspan="3"><img src="{{ l.qr }}" alt="QR"></td>
+			</tr>
+			<tr>
+				<td class="vl-b vl-nw">Manufacturing Date: {{ l.mfg }}</td>
+				<td class="vl-b vl-nw">Tare Wt.: {{ l.tare }} KG</td>
+			</tr>
+			<tr>
+				<td class="vl-b vl-nw">Retest/Expiry Date: {{ l.retest }}</td>
+				<td class="vl-b vl-nw">Net Wt.: {{ l.net }} KG</td>
+			</tr>
+		</table>
+		<table>
+			<tr>
+				<td style="width:64%">{% if l.show_manufacturer %}Manufacturing Licence No.: <span class="vl-u">{{ l.licence_no }}</span>{% endif %}</td>
+				<td class="vl-b">Signature:</td>
+			</tr>
+			<tr>
+				<td>{% if l.show_manufacturer %}(For Manufacturing Use Only).{% endif %}</td>
+				<td class="vl-b">Date:</td>
+			</tr>
+			<tr>
+				<td colspan="2"><span class="vl-b">Storage:</span> {{ l.storage }}</td>
+			</tr>
+		</table>
+		{%- if l.hazard_lines %}
+		<table class="vl-hazard">
+			{%- for h in l.hazard_lines %}<tr><td>{{ h }}</td></tr>{% endfor %}
+		</table>
+		{%- endif %}
+
+		{%- else %}{#- identification -#}
+		<table>
+			<tr>
+				<td class="vl-b" style="width:64%; padding-top:1.5mm">Batch No.: {{ l.batch_no }}</td>
+				<td class="vl-b" style="padding-top:1.5mm">Signature:</td>
+			</tr>
+			<tr>
+				<td></td>
+				<td class="vl-b">Date:</td>
+			</tr>
+		</table>
+		{%- endif %}
+
+		<table class="vl-foot">
+			<tr>
+				{%- if l.show_manufacturer %}
+				<td class="vl-logo" style="width:34mm">{% if data.logo_url %}<img src="{{ data.logo_url }}" alt="Valence Labs">{% endif %}</td>
+				<td class="vl-small">
+					<span class="vl-b">Manufactured in India by:</span><br>
+					<span class="vl-b">{{ data.manufacturer_name }}</span>
+					{%- for line in data.manufacturer_lines %}<br>{{ line }}{% endfor %}
+				</td>
+				{%- else %}
+				<td class="vl-b">{% if l.neutral_label_no %}Neutral Label No.: {{ l.neutral_label_no }}{% endif %}</td>
+				{%- endif %}
+				<td class="vl-right">
+					<span class="vl-b">Drum No.:</span> {{ l.drum }}<br>
+					<span class="vl-b">Label No.:</span> {{ l.label_no }}
+				</td>
+			</tr>
+		</table>
+	</div>
+{%- else %}
+	<p>No drums in Label Details.</p>
+{%- endfor %}
+</div>

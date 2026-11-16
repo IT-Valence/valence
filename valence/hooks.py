@@ -94,7 +94,10 @@ doctype_calendar_js = {"Shift Assignment" : "public/js/shift_assignment_calendar
 
 # add methods and filters to jinja environment
 jinja = {
-	"methods": ["valence.valence.jinja.get_batch_and_lot_number_from_serial_and_batch_bundle"],
+	"methods": [
+		"valence.valence.jinja.get_batch_and_lot_number_from_serial_and_batch_bundle",
+		"valence.valence.labelling.drum_labels.get_drum_labels",
+	],
 	# "filters": "valence.utils.jinja_filters"
 }
 
