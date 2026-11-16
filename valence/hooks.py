@@ -106,6 +106,7 @@ jinja = {
 after_migrate = [
     "valence.valence.setup.leave_workflow.after_migrate",
     "valence.valence.leave_planning.setup.after_migrate",
+    "valence.valence.punch_attendance.setup.after_migrate",
     "valence.valence.setup.od_wfh_workflow.after_migrate",
     "valence.valence.monkey_patch.chemical_stock_entry.after_migrate",
     "valence.valence.setup.short_leave_workflow.after_migrate",
@@ -254,7 +255,9 @@ doc_events = {
     "validate": "valence.valence.doc_events.shift_assignment.set_weekly_off_from_schedule"
   },
   "Employee Checkin": {
-    "validate": "valence.valence.doc_events.employee_checkin.set_applicable_shift"
+    "validate": "valence.valence.doc_events.employee_checkin.set_applicable_shift",
+    "on_update": "valence.valence.punch_attendance.engine.on_checkin_change",
+    "on_trash": "valence.valence.punch_attendance.engine.on_checkin_change",
   },
   # US6 §20 — don't lock HOD/HR to a single Employee via User Permission
   "Employee": {

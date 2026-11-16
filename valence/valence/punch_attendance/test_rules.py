@@ -61,6 +61,16 @@ class TestPunchRules(unittest.TestCase):
 		status, hours, ot, used, flags = self.day([t(1, "09:00"), t(1, "17:00")], off=True)
 		self.assertEqual((status, ot, used), ("Present", 1.0, False))
 
+	def test_reconcile(self):
+		rec = dict(status="Absent", working_hours=0, custom_ot_units=0, custom_punches="07-11 06:55", custom_mispunch_reason="Single punch")
+		self.assertEqual(R.reconcile(None, rec), "create")
+		self.assertIsNone(R.reconcile(None, None))
+		self.assertIsNone(R.reconcile(dict(rec), dict(rec)))
+		fixed = dict(status="Present", working_hours=7.17, custom_ot_units=0, custom_punches="07-11 06:55, 07-11 14:05", custom_mispunch_reason=None)
+		self.assertEqual(R.reconcile(dict(rec), fixed), "replace")
+		self.assertEqual(R.reconcile(dict(rec), None), "cancel")
+		self.assertEqual(R.reconcile(dict(rec, custom_ot_units=0.5), rec), "replace")
+
 
 if __name__ == "__main__":
 	unittest.main()

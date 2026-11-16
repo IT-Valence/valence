@@ -162,3 +162,24 @@ def evaluate(day_duties, security: bool, short_used: int, off_day: bool = False)
 		extra = hours - r["shift"]
 		ot = 1.0 if extra >= r["ot_full"] else 0.5 if extra >= r["ot_half"] else 0.0
 	return status, round(hours, 2), ot, used_short, flags
+
+
+def reconcile(existing, planned):
+	"""What to do with a day: "create", "replace", "cancel" or None.
+
+	existing: the engine's current Attendance for the day (or None).
+	planned: the fields the punches give now (see engine._record), or None
+	when the day should have no attendance (no punches).
+	"""
+	if not existing:
+		return "create" if planned else None
+	if not planned:
+		return "cancel"
+	same = (
+		existing.get("status") == planned["status"]
+		and abs((existing.get("working_hours") or 0) - (planned["working_hours"] or 0)) < 0.01
+		and abs((existing.get("custom_ot_units") or 0) - (planned["custom_ot_units"] or 0)) < 0.01
+		and (existing.get("custom_punches") or None) == planned["custom_punches"]
+		and (existing.get("custom_mispunch_reason") or None) == planned["custom_mispunch_reason"]
+	)
+	return None if same else "replace"
