@@ -97,6 +97,7 @@ jinja = {
 	"methods": [
 		"valence.valence.jinja.get_batch_and_lot_number_from_serial_and_batch_bundle",
 		"valence.valence.labelling.drum_labels.get_drum_labels",
+		"valence.valence.labelling.drum_labels.get_master_label_print",
 	],
 	# "filters": "valence.utils.jinja_filters"
 }

@@ -1,0 +1,61 @@
+{#- Master Label document (QA's Annexure III): label name, specimen label no. and effective
+    date; the specimen sticker (the product/identification sticker without weight fields);
+    Prepared / Reviewed / Approved sign-off.
+    Data: valence.valence.labelling.drum_labels.get_master_label_print -#}
+{%- set m = get_master_label_print(doc) -%}
+{%- from "valence/templates/labels/_sticker.html" import sticker, sticker_css -%}
+{{ sticker_css(m.settings) }}
+<style>
+	.ml-page { position: relative; font-family: Arial, Helvetica, sans-serif; color: #000; min-height: 262mm; }
+	.ml-page table { width: 100%; border-collapse: collapse; }
+	.ml-title { text-align: center; font-weight: bold; margin: 0 0 3mm 0; line-height: 1.5; }
+	.ml-title .t { font-size: 14pt; letter-spacing: 0.5px; }
+	.ml-info td { border: 1px solid #000; padding: 2mm 2.5mm; font-size: 10.5pt; }
+	.ml-info .k { font-weight: bold; white-space: nowrap; width: 46mm; }
+	.ml-specimen { position: relative; margin-top: 8mm; min-height: 110mm; }
+	.ml-specimen .vl-label { margin-bottom: 0; }
+	.ml-mark {
+		position: absolute; left: 0; right: 0; top: 38mm; text-align: center; z-index: 5;
+		-webkit-transform: rotate(-30deg); transform: rotate(-30deg);
+		font-size: 64pt; font-weight: bold; letter-spacing: 6px; color: rgba(90, 90, 90, 0.30);
+	}
+	.ml-mark.draft { color: rgba(140, 140, 140, 0.28); }
+	.ml-mark.retired { color: rgba(200, 0, 0, 0.30); }
+	/* Sign-off box as in QA's template footer: plain, compact, Arial. */
+	.ml-sign { position: absolute; left: 0; right: 0; bottom: 0; font-family: Arial, Helvetica, sans-serif; }
+	.ml-sign table { table-layout: fixed; }
+	.ml-sign td, .ml-sign th {
+		border: 1px solid #000 !important; padding: 0.8mm 1.5mm !important; font-size: 9pt; height: 5mm;
+		background: #fff !important; line-height: 1.2;
+	}
+	.ml-sign th { font-weight: bold; text-align: center; }
+	.ml-sign .k { font-weight: bold; width: 22mm; text-align: left; }
+	.ml-pageno { text-align: right; font-size: 9pt; margin-top: 1.5mm; }
+</style>
+
+<div class="ml-page">
+	<div class="ml-title"><div class="t">MASTER LABEL</div></div>
+
+	<table class="ml-info">
+		<tr><td class="k">NAME OF THE LABEL:</td><td colspan="3">{{ m.name_of_label }}</td></tr>
+		<tr>
+			<td class="k">SPECIMENS LABEL No.:</td><td>{{ m.label_no }}</td>
+			<td class="k" style="width:36mm">EFFECTIVE DATE:</td><td style="width:40mm">{{ m.effective_date }}</td>
+		</tr>
+	</table>
+
+	<div class="ml-specimen">
+		<div class="ml-mark {{ m.status | lower }}">{{ m.watermark }}</div>
+		{{ sticker(m.sticker, m.sticker_data) }}
+	</div>
+
+	<div class="ml-sign">
+		<table>
+			<tr><th class="k"></th><th>Prepared By</th><th>Reviewed By</th><th>Approved By</th></tr>
+			<tr><td class="k">Name</td><td></td><td></td><td></td></tr>
+			<tr><td class="k">Signature</td><td></td><td></td><td></td></tr>
+			<tr><td class="k">Date</td><td></td><td></td><td></td></tr>
+		</table>
+		<div class="ml-pageno">Page 1 of 1</div>
+	</div>
+</div>

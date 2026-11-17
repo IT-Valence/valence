@@ -15,11 +15,11 @@ def _item():
 		).insert(ignore_permissions=True)
 
 
-def _master(label_no, label_type, variant="Standard", grade="IP", **kw):
+def _master(label_no, label_type, variant="Standard", grade="IP", status="Approved", **kw):
 	frappe.db.delete("Master Label", {"name": label_no})
 	frappe.get_doc(
 		doctype="Master Label", label_no=label_no, label_type=label_type, variant=variant, grade=grade,
-		item=ITEM, status="Approved", storage_condition="Keep cool." if label_type == "Product" else None,
+		item=ITEM, status=status, storage_condition="Keep cool." if label_type == "Product" else None,
 		neutral_label_no="PB/DRUGS/2014-OSP" if variant == "Neutral" else None, **kw,
 	).insert(ignore_permissions=True)
 
@@ -69,6 +69,27 @@ class TestDrumLabels(FrappeTestCase):
 		self.assertTrue(p["qr"].startswith("data:image/png;base64,"))  # made in the ERP, no outside site
 		self.assertEqual(data["labels"][0]["label_no"], "L972-00")
 		self.assertEqual(data["watermark"], "")
+
+	def test_master_label_annexure_print(self):
+		from valence.valence.labelling.drum_labels import get_master_label_print
+
+		_master("L975-00", "Product", status="Draft", printed_title="Test Base")
+		draft = frappe.get_doc("Master Label", "L975-00")
+		m = get_master_label_print(draft)
+		self.assertEqual((m["watermark"], m["name_of_label"], m["label_no"]), ("DRAFT", "TEST BASE (IP)", "L975-00"))
+		self.assertEqual(m["sticker"]["drum"], "1 of 1")
+		html = frappe.render_template('{% include "valence/templates/labels/master_label.html" %}', {"doc": draft})
+		self.assertNotIn("ANNEXURE", html)
+		for text in ("MASTER LABEL", "SPECIMENS LABEL No.", "Prepared By", "Reviewed By",
+				"Approved By", "Storage:", "Batch No.:", 'alt="QR"', "L975-00", ">DRAFT<"):
+			self.assertIn(text, html)
+		for text in ("Gross Wt", "Tare Wt", "Net Wt"):  # a master shows no weight fields
+			self.assertNotIn(text, html)
+		# drum stickers still show them
+		self.assertIn("Gross Wt.:", frappe.render_template(
+			'{% set which = "product" %}{% include "valence/templates/labels/drum_labels.html" %}', {"doc": _doc()}))
+		draft.status = "Approved"
+		self.assertEqual(get_master_label_print(draft)["watermark"], "SPECIMEN")
 
 	def test_product_stickers_two_per_page(self):
 		data = get_drum_labels(_doc(drums=5), "all")

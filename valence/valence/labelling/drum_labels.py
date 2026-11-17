@@ -7,7 +7,7 @@ both print routes:
   * printer icon preview  -> doc comes from the browser as JSON (dates are strings)
 """
 import frappe
-from frappe.utils import cint, flt, get_url, getdate
+from frappe.utils import cint, flt, formatdate, get_url, getdate
 
 from valence.valence.doctype.master_label.master_label import find_master_label
 from valence.valence.labelling.normalize import normalize_grade, upper_text
@@ -65,6 +65,62 @@ def _master(doc, label_type, field):
 	)
 
 
+def _master_fields(ml, item_name="", grade=""):
+	"""Sticker text that comes from a Master Label (title, label no., storage, ...)."""
+	title = (ml.printed_title if ml else None) or upper_text(item_name) or ""
+	return {
+		"title": f"{title} ({grade})" if grade and grade != "NA" else title,
+		"label_no": ml.label_no if ml else "",
+		"show_manufacturer": cint(ml.show_manufacturer) if ml else 1,
+		"neutral_label_no": (ml.neutral_label_no if ml else "") or "",
+		"licence_no": (ml.licence_no if ml else "") or "2014-OSP",
+		"storage": (ml.storage_condition if ml else "") or "",
+		"hazard_lines": [l.strip() for l in ((ml.hazard_text if ml else "") or "").splitlines() if l.strip()],
+	}
+
+
+def _manufacturer(settings):
+	logo = settings["logo"]
+	return {
+		"logo_url": get_url(logo) if logo and logo.startswith("/") else logo,
+		"manufacturer_name": settings["manufacturer_name"],
+		"manufacturer_lines": [l for l in (settings["manufacturer_address"] or "").splitlines() if l.strip()],
+	}
+
+
+def get_master_label_print(doc):
+	"""Everything the Master Label print format (SOP S-QA-006, Annexure III) needs.
+
+	The sticker is the specimen: label text from the master, batch/date/weight fields
+	left blank, Drum No. "1 of 1". Watermark DRAFT / SPECIMEN / RETIRED by status.
+	"""
+	if isinstance(doc, str):
+		doc = frappe.get_doc(frappe.parse_json(doc))
+	settings = label_settings()
+	grade = normalize_grade(doc.get("grade")) if doc.get("grade") else ""
+	item_name = frappe.db.get_value("Item", doc.get("item"), "item_name") if doc.get("item") else ""
+	ml = frappe._dict(doc.as_dict() if hasattr(doc, "as_dict") else doc)
+	ml.label_no = ml.label_no or ml.name
+	fields = _master_fields(ml, item_name or ml.product_name, grade)
+	kind = "product" if ml.label_type == "Product" else "identification"
+	# Same as the drum sticker, but a master shows no weight fields at all.
+	sticker = {"kind": kind, **fields, "batch_no": "", "mfg": "", "retest": "", "no_weights": 1, "drum": "1 of 1"}
+	if kind == "product":
+		sticker["qr"] = _qr_data_uri(f"Product: {fields['title']}\nLabel No: {fields['label_no'] or '-'}\nSPECIMEN")
+	status = ml.status or "Draft"
+	return {
+		"sticker": sticker,
+		"sticker_data": {"watermark": "", **_manufacturer(settings)},
+		"settings": settings,
+		"watermark": {"Approved": "SPECIMEN", "Retired": "RETIRED"}.get(status, "DRAFT"),
+		"status": status,
+		"name_of_label": fields["title"],
+		"label_no": fields["label_no"],
+		"effective_date": formatdate(ml.effective_date) if ml.effective_date else "",
+		**_manufacturer(settings),
+	}
+
+
 def get_drum_labels(doc, which="all"):
 	"""Everything the sticker template needs.
 
@@ -80,19 +136,8 @@ def get_drum_labels(doc, which="all"):
 	rows = sorted(doc.get("label_details") or [], key=lambda r: cint(r.get("idx")))
 	total = len(rows)
 
-	def common(ml):
-		title = (ml.printed_title if ml else None) or upper_text(item_name) or ""
-		return {
-			"title": f"{title} ({grade})" if grade and grade != "NA" else title,
-			"label_no": ml.label_no if ml else "",
-			"show_manufacturer": cint(ml.show_manufacturer) if ml else 1,
-			"neutral_label_no": (ml.neutral_label_no if ml else "") or "",
-			"licence_no": (ml.licence_no if ml else "") or "2014-OSP",
-			"storage": (ml.storage_condition if ml else "") or "",
-			"hazard_lines": [l.strip() for l in ((ml.hazard_text if ml else "") or "").splitlines() if l.strip()],
-		}
-
-	product_base, ident_base = common(product_ml), common(ident_ml)
+	product_base = _master_fields(product_ml, item_name, grade)
+	ident_base = _master_fields(ident_ml, item_name, grade)
 	batch_no = upper_text(doc.get("released_b_no")) or ""
 	mfg, retest = _date(doc.get("manufacturing_date")), _date(doc.get("retestexpiry_date"))
 
@@ -145,7 +190,6 @@ def get_drum_labels(doc, which="all"):
 	if which in ("all", "identification") and not ident_ml:
 		warnings.append("NO APPROVED MASTER LABEL")
 
-	logo = settings["logo"]
 	return {
 		"labels": ident_labels + product_labels,
 		"identification_labels": ident_labels,
@@ -153,7 +197,5 @@ def get_drum_labels(doc, which="all"):
 		"product_pages": product_pages,
 		"watermark": " / ".join(dict.fromkeys(warnings)),
 		"settings": settings,
-		"logo_url": get_url(logo) if logo and logo.startswith("/") else logo,
-		"manufacturer_name": settings["manufacturer_name"],
-		"manufacturer_lines": [l for l in (settings["manufacturer_address"] or "").splitlines() if l.strip()],
+		**_manufacturer(settings),
 	}
