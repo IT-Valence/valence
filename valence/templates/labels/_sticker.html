@@ -19,8 +19,15 @@
 	.vl-title { text-align: center; font-weight: bold; font-size: 14pt; padding: 1.2mm 2mm !important; border-bottom: 1.2px solid #000; }
 	.vl-b { font-weight: bold; }
 	.vl-u { text-decoration: underline; }
-	.vl-qr { text-align: right; width: 32mm; }
-	.vl-qr img { width: 28mm; height: 28mm; }
+	/* QR must stay square and sharp or phones cannot read it: fixed cell, no squeezing. */
+	.vl-qr { text-align: right; width: 34mm; min-width: 34mm; padding: 0 1mm !important; }
+	/* Frappe's screen preview stretches images in table cells
+	   ("body:last-child .print-format td img { width: 100% !important }"): out-rank it. */
+	.vl-qr img,
+	body:last-child .print-format .vl-label td.vl-qr img {
+		width: 30mm !important; height: 30mm !important; max-width: none !important; max-height: none !important;
+		min-width: 30mm; object-fit: contain; image-rendering: pixelated; image-rendering: crisp-edges;
+	}
 	.vl-foot { position: absolute; left: 0; right: 0; bottom: 0; border-top: 1.2px solid #000; }
 	.vl-foot td { font-size: 10pt; vertical-align: middle; padding: 1mm 2mm; }
 	.vl-logo img { height: 10.7mm; width: auto; }

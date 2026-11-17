@@ -19,7 +19,7 @@ def _item():
 	if not frappe.db.exists("Item", ITEM):
 		hsn = frappe.db.get_value("GST HSN Code", {}, "name")
 		frappe.get_doc(
-			doctype="Item", item_code=ITEM, item_name="Test Phenylephrine Hydrochloride",
+			doctype="Item", item_code=ITEM, item_name="Test Zylocaine Compound",
 			item_group="All Item Groups", stock_uom="Nos", is_stock_item=0,
 			custom_item_stage=1, gst_hsn_code=hsn,
 		).insert(ignore_permissions=True)
@@ -79,7 +79,7 @@ class TestMasterLabel(FrappeTestCase):
 
 	def test_title_defaults_to_item_name(self):
 		doc = _label("L992-00")
-		self.assertEqual(doc.printed_title, "TEST PHENYLEPHRINE HYDROCHLORIDE")
+		self.assertEqual(doc.printed_title, "TEST ZYLOCAINE COMPOUND")
 
 	def test_bad_label_no(self):
 		self.assertRaises(frappe.ValidationError, _label, "LABEL-ONE")
@@ -99,13 +99,52 @@ class TestMasterLabel(FrappeTestCase):
 		second.status = "Approved"
 		self.assertRaises(frappe.ValidationError, second.save)
 
+	def test_approval_chain_like_lrf(self):
+		from valence.valence.doctype.master_label.master_label import change_status
+
+		_item()
+		frappe.db.delete("Master Label", {"name": "L996-00"})
+		prod, qa = _user("ml-prod@test.local", "Manufacturing User"), _user("ml-qa@test.local", "Stock Manager")
+		new = lambda: frappe.get_doc(doctype="Master Label", label_no="L996-00", label_type="Product",
+			variant="Standard", grade="IP", item=ITEM, storage_condition="Keep cool.")
+		try:
+			frappe.set_user(prod)  # master labels are QA documents: production only reads them
+			self.assertRaises(frappe.PermissionError, new().insert)
+			frappe.set_user(qa)
+			doc = new().insert()
+			self.assertEqual(doc.status, "Draft")
+			self.assertEqual(change_status(doc.name, "send_for_approval"), "Pending")
+			self.assertRaises(frappe.ValidationError, change_status, doc.name, "send_back")  # reason needed
+			self.assertEqual(change_status(doc.name, "send_back", "Storage text wrong"), "Draft")
+			change_status(doc.name, "send_for_approval")
+			frappe.set_user(prod)
+			self.assertRaises(frappe.PermissionError, change_status, doc.name, "approve")  # production cannot approve
+			frappe.set_user(qa)
+			self.assertEqual(change_status(doc.name, "approve"), "Approved")  # self-approval allowed, as on the demo
+			frappe.set_user(prod)
+			approved = frappe.get_doc("Master Label", doc.name)
+			approved.storage_condition = "Changed by production"
+			self.assertRaises(frappe.PermissionError, approved.save)  # read only for production
+		finally:
+			frappe.set_user("Administrator")
+
 	def test_lookup(self):
 		_label("L997-00", status="Approved")
 		_label("L998-00", status="Approved", label_type="Identification", storage_condition=None)
 		_label("L999-00")  # draft, must be ignored
 		self.assertEqual(find_master_label(ITEM, "ip", "Product").name, "L997-00")
-		self.assertEqual(get_master_labels(ITEM, "IP"), {"product": "L997-00", "identification": "L998-00"})
+		self.assertEqual(
+			get_master_labels(ITEM, "IP"),
+			{"product": "L997-00", "product_status": "Approved", "identification": "L998-00", "identification_status": "Approved"},
+		)
 		self.assertIsNone(find_master_label(ITEM, "BP", "Product"))
+
+
+def _user(email, *roles):
+	if not frappe.db.exists("User", email):
+		frappe.get_doc(doctype="User", email=email, first_name=email.split("@")[0], send_welcome_email=0,
+			roles=[{"role": r} for r in roles]).insert(ignore_permissions=True)
+	return email
 
 
 def _docx(path, tables):
@@ -132,7 +171,7 @@ class TestRegisterImport(FrappeTestCase):
 		wb = Workbook()
 		ws = wb.active
 		ws.append(["Sr. No.", "Product ", "Label Type", "Label No.", "Pharmacopoeial Reference", "Remarks"])
-		ws.append([1, "Test Phenylephrine Hydrochloride", "Identification ", "L0901-00", "IP", None])
+		ws.append([1, "Test Zylocaine Compound", "Identification ", "L0901-00", "IP", None])
 		ws.append([None, None, "Product Label", "L902-00", "ip", None])
 		ws.append([2, "Fexofenadine hydrochloride", "Product Label", "L903-00", "USP", "DRAFT"])
 		ws.append([3, "Some Base Neutral", "Product Label", "L904-00", "In-house (With Neutral code)", None])
@@ -143,9 +182,9 @@ class TestRegisterImport(FrappeTestCase):
 		_docx(
 			os.path.join(self.dir, "PHP", "php.docx"),
 			[
-				[["TEST PHENYLEPHRINE HYDROCHLORIDE (IP)"], ["Batch No:", "Label No:", "L901-00"]],
+				[["TEST ZYLOCAINE COMPOUND (IP)"], ["Batch No:", "Label No:", "L901-00"]],
 				[
-					["TEST PHENYLEPHRINE HYDROCHLORIDE (IP)"],
+					["TEST ZYLOCAINE COMPOUND (IP)"],
 					["Batch No.: Gross Wt.: Net Wt.:", "Storage: Keep cool and dry. | x"],
 					["Label No.: L902-00"],
 				],
@@ -158,7 +197,7 @@ class TestRegisterImport(FrappeTestCase):
 	def test_read_register_carries_merged_cells(self):
 		rows = imp.read_register(self.register)
 		self.assertEqual([r["label_no"] for r in rows], ["L901-00", "L902-00", "L903-00", "L904-00"])
-		self.assertEqual(rows[1]["product"], "Test Phenylephrine Hydrochloride")
+		self.assertEqual(rows[1]["product"], "Test Zylocaine Compound")
 		self.assertEqual(rows[1]["sr"], 1)
 
 	def test_plan(self):
@@ -168,13 +207,38 @@ class TestRegisterImport(FrappeTestCase):
 		self.assertEqual((ident["label_type"], ident["grade"], ident["item"]), ("Identification", "IP", ITEM))
 		self.assertEqual(prod["label_type"], "Product")
 		self.assertEqual(prod["storage_condition"], "Keep cool and dry.")
-		self.assertEqual(prod["printed_title"], "TEST PHENYLEPHRINE HYDROCHLORIDE")
+		self.assertEqual(prod["printed_title"], "TEST ZYLOCAINE COMPOUND")
 		self.assertIsNone(prod["import_notes"])
 
 		self.assertIn("uses this label number for 'URSODEOXYCHOLIC ACID (BP)'", fexo["import_notes"])
 		self.assertIn("Register remark: DRAFT", fexo["import_notes"])
 
 		self.assertEqual((neutral["variant"], neutral["grade"], neutral["show_manufacturer"]), ("Neutral", "IH", 0))
+
+	def test_register_data_file_loads_on_a_site(self):
+		"""The patch path: export the register to a data file, then load it on a site."""
+		labels = ("L901-00", "L902-00", "L903-00", "L904-00")
+		for no in labels:
+			frappe.db.delete("Master Label", {"name": no})
+		data = os.path.join(self.dir, "register.json")
+		summary = imp.export_register(self.register, self.dir, data)
+		self.assertEqual(summary["labels"], 4)
+
+		result = imp.load_register(data)
+		status = {no: frappe.db.get_value("Master Label", no, "status") for no in labels}
+		# clean pair -> Approved; DRAFT remark / no Word master -> Draft for QA
+		self.assertEqual((status["L901-00"], status["L902-00"]), ("Approved", "Approved"))
+		self.assertEqual((status["L903-00"], status["L904-00"]), ("Draft", "Draft"))
+		self.assertEqual(frappe.db.get_value("Master Label", "L902-00", "storage_condition"), "Keep cool and dry.")
+		self.assertEqual(result["approved"], 2)
+
+		# QA's later edits to an approved master survive a reload
+		frappe.db.set_value("Master Label", "L902-00", "storage_condition", "QA text")
+		self.assertEqual(imp.load_register(data)["kept"], 2)
+		self.assertEqual(frappe.db.get_value("Master Label", "L902-00", "storage_condition"), "QA text")
+		for no in labels:
+			frappe.db.delete("Master Label", {"name": no})
+		frappe.db.commit()
 
 	def test_run_creates_drafts_and_never_touches_approved(self):
 		for no in ("L901-00", "L902-00", "L903-00", "L904-00"):

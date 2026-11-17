@@ -67,3 +67,36 @@ def normalize_label_no(value):
 def letters_only(value):
 	"""For comparing product names that differ only in spacing/case/punctuation."""
 	return re.sub(r"[^A-Z0-9]", "", (value or "").upper())
+
+
+# grade / variant words that item names and register entries add to a product name
+_NAME_NOISE = re.compile(r"\b(IP|BP|USP|EP|NF|IH|NA|PH\.?\s*EUR\.?|IN-?HOUSE|NEUTRAL|WITH NEUTRAL CODE)\b|\(.*?\)")
+
+
+def product_key(name):
+	"""'PHENYLEPHRINE HYDROCHLORIDE USP' / 'PhenylephrineHydrochloride' -> 'PHENYLEPHRINEHYDROCHLORIDE'.
+
+	Lets one product's several ERP items (general item, one per grade) and the
+	register's spelling all point at the same master labels.
+	"""
+	return letters_only(_NAME_NOISE.sub(" ", (name or "").upper()))
+
+
+def product_similarity(a, b):
+	"""0..1: how sure we are two product keys are the same product."""
+	import difflib
+
+	if not a or not b:
+		return 0
+	if a == b:
+		return 1
+	short, long = sorted((a, b), key=len)
+	# 'URSODEOXYCHOLICACID' in 'URSODIOLURSODEOXYCHOLICACID' is the same product, but
+	# 'KETOPROFEN' in 'DEXKETOPROFENTROMETAMOL' is not: the contained name must be most of the other.
+	if len(short) >= 8 and short in long and len(short) >= 0.6 * len(long):
+		return 0.95
+	return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def same_product(a, b, threshold=0.86):
+	return product_similarity(product_key(a), product_key(b)) >= threshold

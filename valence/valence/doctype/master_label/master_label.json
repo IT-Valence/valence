@@ -60,8 +60,10 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Draft\nApproved\nRetired",
-   "reqd": 1
+   "options": "Draft\nPending\nApproved\nRetired",
+   "reqd": 1,
+   "read_only": 1,
+   "description": "Changed with the buttons at the top. QA (Stock Manager) prepares, sends for approval, approves, sends back or retires."
   },
   {
    "fieldname": "column_break_status",
@@ -230,7 +232,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-17 17:00:00.000000",
+ "modified": "2026-11-17 23:30:00.000000",
  "modified_by": "Administrator",
  "module": "Valence",
  "name": "Master Label",
@@ -238,35 +240,39 @@
  "owner": "Administrator",
  "permissions": [
   {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "share": 1,
    "create": 1,
    "delete": 1,
+   "write": 1,
+   "role": "System Manager"
+  },
+  {
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "System Manager",
    "share": 1,
-   "write": 1
-  },
-  {
    "create": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Quality Manager",
-   "write": 1
-  },
-  {
-   "read": 1,
-   "report": 1,
+   "write": 1,
    "role": "Stock Manager"
   },
   {
+   "print": 1,
    "read": 1,
+   "report": 1,
    "role": "Manufacturing User"
+  },
+  {
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Quality Manager"
   }
  ],
  "search_fields": "product_name,item,grade,label_type",

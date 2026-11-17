@@ -136,7 +136,11 @@ const valence_lrf = {
 				: ""
 		);
 		grid.clear_custom_buttons?.();
-		if (!qa) return grid.refresh();
+		// Only people allowed to edit QA's columns get the buttons (on Valence's sites the
+		// QA columns are field level 2: Stock Manager writes, production only reads).
+		const qa_level = grid.get_docfield("seal_no")?.permlevel || 0;
+		const can_qa = frappe.perm.has_perm(frm.doctype, qa_level, "write", frm.doc);
+		if (!qa || !can_qa) return grid.refresh();
 		const mark = (field, value) => () => {
 			const picked = grid.get_selected_children();
 			const rows = picked.length ? picked : frm.doc.label_details || [];
@@ -195,6 +199,10 @@ const valence_lrf = {
 
 frappe.ui.form.on("Label Requisition Form", {
 	setup(frm) {
+		// Only batches of the chosen product (not raw/packing material batches).
+		frm.set_query("production_b_no", () =>
+			frm.doc.production_item ? { filters: { item: frm.doc.production_item } } : {}
+		);
 		frappe.db.get_single_value("Labelling Settings", "container_weight_tolerance_kg").then((v) => {
 			valence_lrf.tolerance = flt(v);
 		});

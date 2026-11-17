@@ -90,6 +90,17 @@ class TestDrumLabels(FrappeTestCase):
 			'{% set which = "product" %}{% include "valence/templates/labels/drum_labels.html" %}', {"doc": _doc()}))
 		draft.status = "Approved"
 		self.assertEqual(get_master_label_print(draft)["watermark"], "SPECIMEN")
+		# identification masters have no QR, like QA's identification labels
+		_master("L976-00", "Identification", status="Draft")
+		self.assertNotIn("qr", get_master_label_print(frappe.get_doc("Master Label", "L976-00"))["sticker"])
+
+	def test_qr_text_is_plain_ascii(self):
+		from valence.valence.labelling.drum_labels import _qr_text
+
+		self.assertEqual(
+			_qr_text("Store at 25 ˚C, between 15 °C to 30 ºC\nLabel No: L026-00"),
+			"Store at 25 deg C, between 15 deg C to 30 deg C\nLabel No: L026-00",
+		)
 
 	def test_product_stickers_two_per_page(self):
 		data = get_drum_labels(_doc(drums=5), "all")
@@ -117,7 +128,34 @@ class TestDrumLabels(FrappeTestCase):
 	def test_watermarks(self):
 		_master("L971-00", "Product")
 		self.assertEqual(get_drum_labels(_doc(docstatus=0), "product")["watermark"], "NOT APPROVED - DO NOT USE")
-		self.assertEqual(get_drum_labels(_doc(grade="BP"), "product")["watermark"], "NO APPROVED MASTER LABEL")
+		self.assertEqual(get_drum_labels(_doc(grade="BP"), "product")["watermark"], "NO MASTER LABEL")
+
+	def test_draft_master_gives_number_but_watermark(self):
+		# QA's register entry still in review: the number prints, watermarked
+		_master("L977-00", "Product", grade="EP", status="Draft")
+		data = get_drum_labels(_doc(grade="EP"), "product")
+		self.assertEqual(data["labels"][0]["label_no"], "L977-00")
+		self.assertEqual(data["watermark"], "MASTER LABEL NOT APPROVED")
+
+	def test_master_found_from_any_item_of_the_product(self):
+		from valence.valence.doctype.master_label.master_label import find_master_label
+
+		_master("L978-00", "Product", grade="USP")  # linked to the general item
+		code = "_TEST-DL-ITEM-USP"
+		if not frappe.db.exists("Item", code):
+			frappe.get_doc(doctype="Item", item_code=code, item_name="Test sticker product USP", item_group="All Item Groups",
+				stock_uom="Kg", is_stock_item=0, custom_item_stage=1,
+				gst_hsn_code=frappe.db.get_value("GST HSN Code", {}, "name")).insert(ignore_permissions=True)
+		self.assertEqual(find_master_label(code, "USP", "Product").name, "L978-00")
+		self.assertIsNone(find_master_label(code, "BP", "Product"))  # other grade: nothing
+
+	def test_product_names_do_not_cross_match(self):
+		from valence.valence.labelling.normalize import same_product
+
+		self.assertTrue(same_product("Dexketoproden Tromatamol", "DEXKETOPROFEN TROMETAMOL"))
+		self.assertTrue(same_product("Ursodeoxycholic acid", "URSODIOL URSODEOXYCHOLIC ACID USP"))
+		self.assertFalse(same_product("KETOPROFEN", "DEXKETOPROFEN TROMETAMOL"))
+		self.assertFalse(same_product("Phenylephrine Base", "PHENYLEPHRINE HYDROCHLORIDE"))
 
 	def test_no_master_label_falls_back_to_item_name(self):
 		data = get_drum_labels(_doc(grade="usp"), "product")

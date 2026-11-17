@@ -47,22 +47,42 @@ def _kg(value):
 	return f"{flt(value, 3):.3f}" if value not in (None, "") else ""
 
 
-def _qr_data_uri(text):
+def _qr_text(text):
+	"""Plain ASCII for the QR: a QR does not say which character set it uses, and many
+	scanners guess wrong for symbols like the degree sign ("25 ˚C" read back as "25 ﾋ咾").
+	The printed sticker keeps the real symbols; only the QR content is spelled out."""
+	import unicodedata
+
+	for sign in ("°", "˚", "º"):
+		text = text.replace(sign, " deg ")
+	text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+	return "\n".join(" ".join(line.split()) for line in text.splitlines())
+
+
+def _qr_data_uri(text, error="M"):
+	"""QR as a PNG data URI. quiet_zone=4 is the white border the QR standard asks for
+	(phones need it to find the code next to text). error: "M" for drums (survives scuffs),
+	"L" for paper documents, which keeps a long QR less dense."""
 	import pyqrcode
 
-	return "data:image/png;base64," + pyqrcode.create(text, error="M", encoding="utf-8").png_as_base64_str(
-		scale=4, quiet_zone=2
+	return "data:image/png;base64," + pyqrcode.create(_qr_text(text), error=error).png_as_base64_str(
+		scale=8, quiet_zone=4
 	)
 
 
 def _master(doc, label_type, field):
-	"""Approved Master Label for this LRF: the one saved on the LRF, else a live lookup."""
+	"""Master Label for this LRF: an Approved one (saved on the LRF, else a live lookup),
+	else the register's Draft one, so the label number still prints (watermarked)."""
 	name = doc.get(field)
 	if name and frappe.db.get_value("Master Label", name, "status") == "Approved":
 		return frappe.get_cached_doc("Master Label", name)
-	return find_master_label(
-		doc.get("production_item"), doc.get("grade"), label_type, doc.get("label_variant") or "Standard", doc.get("customer")
-	)
+	args = (doc.get("production_item"), doc.get("grade"), label_type, doc.get("label_variant") or "Standard", doc.get("customer"))
+	found = find_master_label(*args)
+	if found:
+		return found
+	if name and frappe.db.get_value("Master Label", name, "status") in ("Draft", "Pending"):
+		return frappe.get_cached_doc("Master Label", name)
+	return find_master_label(*args, include_drafts=True)
 
 
 def _master_fields(ml, item_name="", grade=""):
@@ -106,7 +126,20 @@ def get_master_label_print(doc):
 	# Same as the drum sticker, but a master shows no weight fields at all.
 	sticker = {"kind": kind, **fields, "batch_no": "", "mfg": "", "retest": "", "no_weights": 1, "drum": "1 of 1"}
 	if kind == "product":
-		sticker["qr"] = _qr_data_uri(f"Product: {fields['title']}\nLabel No: {fields['label_no'] or '-'}\nSPECIMEN")
+		# The master's own QR holds only what the master slip shows: no batch, dates or weights.
+		maker = _manufacturer(settings)
+		lines = [f"Product: {fields['title']}"]
+		if fields["show_manufacturer"]:
+			lines += [f"Manufacturing Licence No: {fields['licence_no']}", "(For Manufacturing Use Only)."]
+		if fields["storage"]:
+			lines.append(f"Storage: {fields['storage']}")
+		lines += fields["hazard_lines"]
+		if fields["show_manufacturer"]:
+			lines += ["Manufactured in India by:", maker["manufacturer_name"], *maker["manufacturer_lines"]]
+		elif fields["neutral_label_no"]:
+			lines.append(f"Neutral Label No: {fields['neutral_label_no']}")
+		lines += ["Drum No: 1 of 1", f"Label No: {fields['label_no'] or '-'}"]
+		sticker["qr"] = _qr_data_uri("\n".join(lines), error="L")  # paper document: less dense
 	status = ml.status or "Draft"
 	return {
 		"sticker": sticker,
@@ -185,10 +218,13 @@ def get_drum_labels(doc, which="all"):
 	warnings = []
 	if cint(doc.get("docstatus")) != 1:
 		warnings.append("NOT APPROVED - DO NOT USE")
-	if which in ("all", "product") and not product_ml:
-		warnings.append("NO APPROVED MASTER LABEL")
-	if which in ("all", "identification") and not ident_ml:
-		warnings.append("NO APPROVED MASTER LABEL")
+	for kinds, ml in ((("all", "product"), product_ml), (("all", "identification"), ident_ml)):
+		if which not in kinds:
+			continue
+		if not ml:
+			warnings.append("NO MASTER LABEL")
+		elif ml.status != "Approved":
+			warnings.append("MASTER LABEL NOT APPROVED")
 
 	return {
 		"labels": ident_labels + product_labels,

@@ -1,8 +1,8 @@
 """LRF workflow: let QA send a form back to production.
 
 Adds a "Send Back" action to the active Label Requisition Form workflow, from every
-state between Draft and the submitted (approved) state, back to Draft. Whoever may
-approve a form at that stage may also send it back. The form itself asks for the reason
+state between Draft and the submitted (approved) state, back to Draft, for the role
+that gives final approval (QA). The form itself asks for the reason
 in Remarks QA (label_requisition_form.py). Existing transitions are not touched.
 Idempotent; removing the added transitions in the Workflow is the undo.
 """
@@ -22,25 +22,28 @@ def execute():
 	if not frappe.db.exists("Workflow Action Master", ACTION):
 		frappe.get_doc(doctype="Workflow Action Master", workflow_action_name=ACTION).insert(ignore_permissions=True)
 
+	# Sending back is QA's call: the role that gives final approval (on Valence's
+	# sites: Stock Manager, the same role as their own "Reject").
+	submitted = {s.state for s in wf.states if str(s.doc_status) == "1"}
+	final = next((t for t in wf.transitions if t.next_state in submitted), None)
+	approver = final.allowed if final else "System Manager"
+
 	in_progress = [s.state for s in wf.states if str(s.doc_status) == "0" and s.state != draft]
+	changed = False
+	for row in wf.transitions:
+		if row.action == ACTION and row.allowed != approver:
+			row.allowed = approver
+			changed = True
 	existing = {(t.state, t.action) for t in wf.transitions}
-	added = False
 	for state in in_progress:
 		if (state, ACTION) in existing:
 			continue
-		forward = next((t for t in wf.transitions if t.state == state and t.action != ACTION), None)
 		wf.append(
 			"transitions",
-			{
-				"state": state,
-				"action": ACTION,
-				"next_state": draft,
-				"allowed": forward.allowed if forward else "All",
-				"allow_self_approval": 1,
-			},
+			{"state": state, "action": ACTION, "next_state": draft, "allowed": approver, "allow_self_approval": 1},
 		)
-		added = True
-	if added:
+		changed = True
+	if changed:
 		wf.flags.ignore_permissions = True
 		wf.save()
 	frappe.clear_cache(doctype="Label Requisition Form")

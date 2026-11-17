@@ -277,6 +277,124 @@ def build_plan(register, masters_folder=None):
 	return plan
 
 
+# --------------------------------------------- register shipped with the app
+# QA's register (Master Label Record.xlsx) plus the titles/storage from their Word
+# masters, frozen into a data file inside the app. A patch loads it on every site,
+# so label numbers fill in automatically on the demo and production without anyone
+# uploading files. Rows QA must still settle stay Draft with the reason.
+
+REGISTER_DATA = os.path.join(os.path.dirname(__file__), "data", "master_label_register.json")
+
+# review notes that mean "do not print this label as approved yet"
+BLOCKING = (
+	"Register remark",  # e.g. DRAFT in the register
+	"Label No. also listed",
+	"Register has no pharmacopoeia",
+	"No Word master found",  # printed title/storage not confirmed by a Word master
+	"Register says",  # register type differs from the Word layout
+	"Word files disagree on storage",
+	"Storage condition needed",
+)
+
+
+def export_register(register, masters_folder, out_path=REGISTER_DATA):
+	"""Freeze the register + Word masters into the app's data file (run on a machine
+	that has QA's files). Items are not stored: each site matches its own."""
+	import json
+
+	rows = []
+	for p in build_plan(register, masters_folder):
+		notes = [n for n in (p.pop("import_notes") or "").splitlines() if n and not n.startswith("Link the ERP Item")]
+		p.pop("item", None)
+		p["review_notes"] = notes
+		p["blocking"] = any(n.startswith(BLOCKING) for n in notes)
+		rows.append(p)
+	os.makedirs(os.path.dirname(out_path), exist_ok=True)
+	with open(out_path, "w", encoding="utf-8") as fh:
+		json.dump(
+			{"source": os.path.basename(register), "labels": rows}, fh, indent=1, ensure_ascii=False, sort_keys=True
+		)
+		fh.write("\n")
+	return {"labels": len(rows), "approvable": sum(1 for r in rows if not r["blocking"])}
+
+
+def _general_item(product):
+	"""The site's ERP item for a register product, when exactly one general (no grade in
+	the name) enabled item matches. Optional: label lookup also works by product name."""
+	from valence.valence.labelling.normalize import product_key, product_similarity
+
+	key = product_key(product)
+	hits = [
+		i.name
+		for i in frappe.get_all("Item", filters={"disabled": 0}, fields=["name", "item_name"])
+		if product_similarity(key, product_key(i.item_name)) >= 0.86
+		and not re.search(r"\b(IP|BP|USP|EP|PH\.?\s*EUR\.?)\b", (i.item_name or "").upper())
+	]
+	return hits[0] if len(hits) == 1 else None
+
+
+def load_register(path=REGISTER_DATA):
+	"""Create / refresh Master Labels from the app's register data file.
+
+	* Approved or Retired masters are never touched (QA's decisions win).
+	* A clean register row is loaded as Approved: the register is the list QA uses today.
+	* A row with a blocking review note, or a second label for the same product/grade/
+	  type/variant, stays Draft with its notes for QA.
+	"""
+	import json
+
+	from valence.valence.doctype.master_label.master_label import SAME_PRODUCT, _candidates, _names_of, _similarity
+
+	with open(path, encoding="utf-8") as fh:
+		data = json.load(fh)
+	result = {"approved": [], "draft": [], "kept": []}
+	for row in data["labels"]:
+		name = row["label_no"]
+		if frappe.db.exists("Master Label", name) and frappe.db.get_value("Master Label", name, "status") != "Draft":
+			result["kept"].append(name)
+			continue
+		notes = list(row["review_notes"])
+		values = {
+			k: row[k]
+			for k in (
+				"label_no", "register_sr_no", "product_name", "label_type", "grade", "variant", "printed_title",
+				"storage_condition", "show_manufacturer", "neutral_label_no", "source_file",
+			)
+		}
+		values["item"] = _general_item(row["product_name"])
+		values["remarks"] = f"From QA's register {data['source']} (Sr. {row['register_sr_no'] or '-'})."
+		approve = not row["blocking"]
+		if approve:
+			mine = _names_of(values)
+			twin = next(
+				(
+					r.name
+					for r in _candidates(values["grade"], values["label_type"], values["variant"], None, ("Approved",))
+					if r.name != name and _similarity(mine, _names_of(r)) >= SAME_PRODUCT
+				),
+				None,
+			)
+			if twin:
+				approve = False
+				notes.append(
+					f"{twin} is already the approved {values['label_type']} label for this product and grade. "
+					"QA: approve this one only if it replaces it (retire the other)."
+				)
+		doc = frappe.get_doc("Master Label", name) if frappe.db.exists("Master Label", name) else frappe.new_doc("Master Label")
+		doc.update(values)
+		doc.import_notes = "\n".join(notes) or None
+		doc.status = "Approved" if approve else "Draft"
+		try:
+			doc.save(ignore_permissions=True)
+		except frappe.ValidationError as e:  # not ready after all: keep it for QA
+			frappe.clear_messages()
+			doc.status = "Draft"
+			doc.import_notes = "\n".join(filter(None, [doc.import_notes, f"Not approved on load: {e}"]))
+			doc.save(ignore_permissions=True)
+		result["approved" if doc.status == "Approved" else "draft"].append(name)
+	return {k: len(v) for k, v in result.items()} | {"draft_labels": result["draft"]}
+
+
 def run(register, masters_folder=None, dry_run=0):
 	"""Create (or refresh Draft) Master Labels from the register. Approved ones are never touched."""
 	plan = build_plan(register, masters_folder)

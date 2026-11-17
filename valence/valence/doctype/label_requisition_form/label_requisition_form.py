@@ -34,6 +34,7 @@ class LabelRequisitionForm(Document):
 
 	def before_submit(self):
 		self.check_production_complete()
+		self.check_label_header()
 		self.check_qa()
 		self.check_master_label()
 
@@ -191,10 +192,6 @@ class LabelRequisitionForm(Document):
 		"send back" step, so anything missing here could not be fixed later.
 		"""
 		problems = []
-		if not self.grade:
-			problems.append(_("Grade is empty."))
-		if not self.released_b_no:
-			problems.append(_("Released B. No. is empty (it prints as Batch No. on every sticker)."))
 		if not self.manufacturing_date:
 			problems.append(_("Manufacturing Date is empty."))
 		if not self.retestexpiry_date:
@@ -225,6 +222,25 @@ class LabelRequisitionForm(Document):
 				_("Total Net Weight {0} kg is more than the batch size {1} kg.").format(net, flt(self.batch_size_kgs)),
 				indicator="orange",
 				alert=True,
+			)
+
+	def check_label_header(self):
+		"""Grade and the label batch number print on every sticker.
+
+		On the live site they are usually filled while the form is with QA (release
+		number, e.g. PHP006426), so they are required at final approval, not earlier.
+		"""
+		missing = []
+		if not self.grade:
+			missing.append(_("Grade"))
+		if not self.released_b_no:
+			missing.append(_("Batch No. (on labels)"))
+		if missing:
+			frappe.throw(
+				_("{0} must be filled before final approval: printed on every drum sticker.").format(
+					_(" and ").join(missing)
+				),
+				title=_("Label details missing"),
 			)
 
 	def warn_other_lrfs(self):
@@ -300,8 +316,10 @@ class LabelRequisitionForm(Document):
 		product = ident = None
 		if self.production_item and self.grade:
 			args = (self.production_item, self.grade)
-			product = find_master_label(*args, "Product", self.label_variant, self.customer)
-			ident = find_master_label(*args, "Identification", self.label_variant, self.customer)
+			# numbers come from QA's register even while a master is still in review (Draft);
+			# such labels print watermarked until QA approves the master
+			product = find_master_label(*args, "Product", self.label_variant, self.customer, include_drafts=True)
+			ident = find_master_label(*args, "Identification", self.label_variant, self.customer, include_drafts=True)
 		self.product_label_no = product.name if product else None
 		self.identification_label_no = ident.name if ident else None
 
