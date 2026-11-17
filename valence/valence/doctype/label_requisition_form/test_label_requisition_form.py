@@ -157,8 +157,46 @@ class TestLabelRequisitionForm(FrappeTestCase):
 		doc = _approve(_lrf())
 		self.assertEqual((doc.docstatus, doc.workflow_state), (1, "Approved"))
 
+	def test_qa_sends_back_for_wrong_weights(self):
+		doc = _step(_lrf(), 1)  # with QA
+		doc = _qa(doc)
+		send_back = lambda d: apply_workflow(frappe.get_doc(d.doctype, d.name), "Send Back")
+		self.assertRaises(frappe.ValidationError, send_back, doc)  # reason needed
+		doc = frappe.get_doc(doc.doctype, doc.name)
+		doc.remarks_qa = "Drum 02/02 net weight is 9.8 kg on our scale."
+		doc.save()
+		doc = send_back(doc)
+		self.assertEqual(doc.workflow_state, "Draft")
+		self.assertEqual([r.container_condition or "" for r in doc.label_details], ["", ""])  # QA re-checks
+		self.assertTrue(frappe.db.exists("Comment", {"reference_name": doc.name, "content": ["like", "%Sent back%9.8 kg%"]}))
+		# production corrects the weight and sends it again
+		doc = frappe.get_doc(doc.doctype, doc.name)
+		doc.label_details[1].net_weight_kg = 9.8
+		doc.released_qty_kgs = 34.8
+		doc.save()
+		self.assertEqual(doc.label_details[1].observed_weight_kg, 11.05)  # follows the corrected gross
+		doc = _step(doc, 1)
+		_qa(doc)
+		self.assertEqual(_step(doc, 2).docstatus, 1)
+
+	def test_send_back_from_sealed(self):
+		doc = _step(_qa(_step(_lrf(), 1)), 1)  # Sealed
+		doc = frappe.get_doc(doc.doctype, doc.name)
+		doc.remarks_qa = "Re-weigh drum 01/02."
+		doc.save()
+		self.assertEqual(apply_workflow(doc, "Send Back").workflow_state, "Draft")
+
+	def test_cannot_seal_without_seal_numbers(self):
+		doc = _step(_lrf(), 1)  # Pending, QA has not entered seals
+		self.assertRaises(frappe.ValidationError, _step, doc, 1)
+
 	def test_qa_must_finish_before_final_approval(self):
-		doc = _step(_lrf(), 2)  # Sealed, but QA columns empty
+		doc = _step(_lrf(), 1)
+		doc = frappe.get_doc(doc.doctype, doc.name)
+		for i, row in enumerate(doc.label_details):  # seals done, container check not done
+			row.seal_no, row.seal_condition = str(500 + i), "Ok"
+		doc.save()
+		doc = _step(doc, 1)  # Sealed
 		self.assertRaises(frappe.ValidationError, _step, doc, 1)
 
 	def test_duplicate_seal_refused(self):
@@ -186,6 +224,27 @@ class TestLabelRequisitionForm(FrappeTestCase):
 	def test_released_qty_must_match_net(self):
 		doc = _lrf(released=30)
 		self.assertRaises(frappe.ValidationError, _approve, doc)
+
+	def test_rows_made_for_stock_entry_style_lrf(self):
+		# what the Manufacture Stock Entry hook does: item, batch and reference only
+		doc = frappe.get_doc(dict(doctype="Label Requisition Form", production_item=ITEM, production_b_no=BATCH,
+			grade="", inspected_by="Administrator"))
+		doc.flags.ignore_mandatory = doc.flags.ignore_permissions = True
+		doc.insert()
+		self.assertEqual(int(doc.no_of_packages), 2)  # from the batch
+		self.assertEqual([r.drum_no for r in doc.label_details], ["01/02", "02/02"])
+		self.assertEqual([r.no_of_labels_required for r in doc.label_details], [2, 2])
+
+	def test_incomplete_form_cannot_go_to_qa(self):
+		for kw in (dict(released_b_no=""), dict(grade=""), dict(released=5)):
+			doc = _lrf(**{k: v for k, v in kw.items() if k == "released"})
+			for k, v in kw.items():
+				if k != "released":
+					doc.set(k, v)
+			doc.save()
+			self.assertRaises(frappe.ValidationError, _step, doc, 1)
+		self.assertRaises(frappe.ValidationError, _step, _lrf(drums=((25, 3.5),)), 1)  # 1 drum, batch says 2
+		self.assertRaises(frappe.ValidationError, _step, _lrf(drums=((25, 3.5), (0, 1.0))), 1)  # empty drum
 
 	def test_require_master_label_setting(self):
 		frappe.db.delete("Master Label", {"item": ITEM})

@@ -107,7 +107,7 @@ const valence_lrf = {
 
 	// ---- QA columns on the same table. Production fills Drum No. / Net / Tare while
 	// the form is a Draft; after it is sent for approval those lock and QA's columns open.
-	PRODUCTION_COLS: ["drum_no", "net_weight_kg", "tare_weight_kg", "no_of_labels_required"],
+	PRODUCTION_COLS: ["drum_no", "net_weight_kg", "tare_weight_kg"],
 	QA_COLS: ["observed_weight_kg", "container_condition", "seal_no", "seal_condition"],
 
 	qa_stage(frm) {
@@ -171,6 +171,14 @@ const valence_lrf = {
 	},
 
 	show_label_status(frm) {
+		// Sent back by QA: production sees why at the top of the form.
+		if (frm.doc.docstatus === 0 && frm.doc.workflow_state === "Draft" && (frm.doc.remarks_qa || "").trim()) {
+			frm.dashboard.add_comment(
+				__("QA remarks: {0}", [frappe.utils.escape_html(frm.doc.remarks_qa)]),
+				"red",
+				true
+			);
+		}
 		if (frm.is_new() || !frm.doc.grade) return;
 		if (!frm.doc.product_label_no) {
 			frm.dashboard.add_comment(
@@ -194,6 +202,11 @@ frappe.ui.form.on("Label Requisition Form", {
 
 	onload_post_render(frm) {
 		valence_lrf.fill_from_batch(frm);
+		// Forms made by the Stock Entry hook already know No. of Containers but have no rows yet.
+		const total = cint(frm.doc.no_of_packages);
+		if (frm.doc.docstatus === 0 && !valence_lrf.qa_stage(frm) && total > 0 && !(frm.doc.label_details || []).length) {
+			valence_lrf.make_drum_rows(frm, total);
+		}
 		if (flt(frm.doc.released_qty_kgs) < 0) frm.set_value("released_qty_kgs", 0);
 	},
 

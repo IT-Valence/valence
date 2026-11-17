@@ -6,7 +6,12 @@
 {%- from "valence/templates/labels/_sticker.html" import sticker, sticker_css -%}
 {{ sticker_css(m.settings) }}
 <style>
-	.ml-page { position: relative; font-family: Arial, Helvetica, sans-serif; color: #000; min-height: 262mm; }
+	/* One A4 page: fixed height well inside A4 minus margins (also inside Frappe's
+	   11.69in preview check, which adds its own padding), never split. */
+	.ml-page {
+		position: relative; font-family: Arial, Helvetica, sans-serif; color: #000;
+		height: 240mm; overflow: hidden; page-break-inside: avoid; break-inside: avoid;
+	}
 	.ml-page table { width: 100%; border-collapse: collapse; }
 	.ml-title { text-align: center; font-weight: bold; margin: 0 0 3mm 0; line-height: 1.5; }
 	.ml-title .t { font-size: 14pt; letter-spacing: 0.5px; }

@@ -18,18 +18,30 @@ class LabelRequisitionForm(Document):
 
 	def validate(self):
 		self.fill_from_batch()
+		if self.sent_back():
+			self.reopen_for_production()
+		self.make_drum_rows()
 		self.clean_label_text()
 		self.calculate_weights()
 		self.set_label_numbers()
 		self.lock_production_columns()
+		if self.leaving_draft():
+			self.check_production_complete()
+		if self.entering_state("Sealed"):
+			self.check_seals()
 		self.warn_on_dates()
+		self.warn_other_lrfs()
 
 	def before_submit(self):
-		self.check_dates()
-		self.check_released_qty()
-		self.check_drums()
+		self.check_production_complete()
 		self.check_qa()
 		self.check_master_label()
+
+	def on_update(self):
+		if self.flags.sent_back_reason:
+			self.add_comment(
+				"Comment", _("Sent back to production by QA. Reason: {0}").format(self.flags.sent_back_reason)
+			)
 
 	def on_submit(self):
 		# self.create_quality_inspection()
@@ -56,6 +68,19 @@ class LabelRequisitionForm(Document):
 			self.lot_no = batch.lot_no
 		if not cint(self.no_of_packages) and cint(batch.get("no_of_packages")):
 			self.no_of_packages = str(cint(batch.no_of_packages))
+
+	def make_drum_rows(self):
+		"""One row per container (01/05, 02/05, ...) when the form has none yet.
+
+		Covers LRFs made by the Stock Entry hook, data import or API: the batch gives
+		No. of Containers but nobody opened the form to trigger the screen's row maker.
+		"""
+		total = cint(self.no_of_packages)
+		if self.docstatus != 0 or self.past_draft() or self.label_details or total <= 0:
+			return
+		width = max(2, len(str(total)))
+		for i in range(1, total + 1):
+			self.append("label_details", {"drum_no": f"{i:0{width}d}/{total:0{width}d}"})
 
 	def clean_label_text(self):
 		"""Anything printed on the drum is stored trimmed and in CAPITALS."""
@@ -114,6 +139,110 @@ class LabelRequisitionForm(Document):
 		"""True once the approval workflow has moved the form past Draft."""
 		state = self.get("workflow_state")
 		return bool(state) and state != "Draft"
+
+	def leaving_draft(self):
+		"""True on the save that sends the form from Draft to QA (first Approve)."""
+		if not self.past_draft():
+			return False
+		before = self.get_doc_before_save()
+		return not before or before.get("workflow_state") in (None, "", "Draft")
+
+	def sent_back(self):
+		"""True on the save where QA sends the form back to Draft ("Send Back")."""
+		if self.past_draft() or not self.get("workflow_state"):
+			return False
+		before = self.get_doc_before_save()
+		return bool(before) and before.get("workflow_state") not in (None, "", "Draft")
+
+	def reopen_for_production(self):
+		"""Production may correct its entries again; QA re-checks the containers afterwards."""
+		reason = (self.remarks_qa or "").strip()
+		if not reason:
+			frappe.throw(
+				_("Write what production must correct in Remarks QA, save, then press Send Back."),
+				title=_("Reason needed"),
+			)
+		for row in self.label_details:
+			row.container_condition = None  # weights may change: QA checks again
+		self.flags.sent_back_reason = reason
+
+	def entering_state(self, state):
+		"""True on the save that moves the workflow into `state`."""
+		if self.get("workflow_state") != state:
+			return False
+		before = self.get_doc_before_save()
+		return not before or before.get("workflow_state") != state
+
+	def check_seals(self):
+		"""A form cannot be marked Sealed while drums have no seal recorded."""
+		missing = [r.drum_no or str(r.idx) for r in self.label_details if not r.seal_no or not r.seal_condition]
+		if missing:
+			frappe.throw(
+				_("Enter Seal No. and Seal (Ok / Not Ok) for drum(s) {0} before marking the form Sealed.").format(
+					", ".join(missing)
+				),
+				title=_("Seals not recorded"),
+			)
+
+	def check_production_complete(self):
+		"""Everything production owes before QA gets the form (and again at final approval).
+
+		Production's columns lock once the form leaves Draft and the workflow has no
+		"send back" step, so anything missing here could not be fixed later.
+		"""
+		problems = []
+		if not self.grade:
+			problems.append(_("Grade is empty."))
+		if not self.released_b_no:
+			problems.append(_("Released B. No. is empty (it prints as Batch No. on every sticker)."))
+		if not self.manufacturing_date:
+			problems.append(_("Manufacturing Date is empty."))
+		if not self.retestexpiry_date:
+			problems.append(_("Retest/Expiry Date is empty."))
+		elif self._bad_dates():
+			problems.append(self._date_message())
+		rows = self.label_details
+		if not rows:
+			problems.append(_("Label Details has no drums."))
+		zero = [r.drum_no or str(r.idx) for r in rows if flt(r.net_weight_kg) <= 0]
+		if zero:
+			problems.append(_("Net Weight is missing for drum(s) {0}.").format(", ".join(zero)))
+		containers = cint(self.no_of_packages)
+		if containers and rows and containers != len(rows):
+			problems.append(
+				_("No. of Containers is {0} but Label Details has {1} drums.").format(containers, len(rows))
+			)
+		released, net = flt(self.released_qty_kgs, WEIGHT_PRECISION), flt(self.total_net_weight, WEIGHT_PRECISION)
+		if rows and released != net:
+			problems.append(_("Released Qty ({0} kg) must equal Total Net Weight ({1} kg).").format(released, net))
+		if problems:
+			frappe.throw(
+				_("Production has not finished this form:") + "<br>• " + "<br>• ".join(problems),
+				title=_("Cannot send for approval"),
+			)
+		if flt(self.batch_size_kgs) and net > flt(self.batch_size_kgs) + 1e-9:
+			frappe.msgprint(
+				_("Total Net Weight {0} kg is more than the batch size {1} kg.").format(net, flt(self.batch_size_kgs)),
+				indicator="orange",
+				alert=True,
+			)
+
+	def warn_other_lrfs(self):
+		if not self.production_b_no or self.flags.in_test:
+			return
+		others = frappe.get_all(
+			"Label Requisition Form",
+			filters={"production_b_no": self.production_b_no, "docstatus": ["<", 2], "name": ["!=", self.name or ""]},
+			pluck="name",
+		)
+		if others:
+			frappe.msgprint(
+				_("Batch {0} already has LRF {1}. Check this is not a duplicate.").format(
+					self.production_b_no, ", ".join(others)
+				),
+				indicator="orange",
+				alert=True,
+			)
 
 	def lock_production_columns(self):
 		before = self.get_doc_before_save()
@@ -191,25 +320,6 @@ class LabelRequisitionForm(Document):
 	def warn_on_dates(self):
 		if self._bad_dates() and not self.flags.ignore_date_warning:
 			frappe.msgprint(self._date_message() + " " + _("This LRF cannot be approved until it is fixed."), indicator="orange", alert=True)
-
-	def check_dates(self):
-		if self._bad_dates():
-			frappe.throw(self._date_message())
-
-	def check_released_qty(self):
-		released = flt(self.released_qty_kgs, WEIGHT_PRECISION)
-		net = flt(self.total_net_weight, WEIGHT_PRECISION)
-		if released != net:
-			frappe.throw(
-				_("Released Qty ({0} kg) must equal Total Net Weight ({1} kg).").format(released, net)
-			)
-
-	def check_drums(self):
-		if not self.label_details:
-			frappe.throw(_("Add one row per drum in Label Details."))
-		empty = [row.idx for row in self.label_details if flt(row.net_weight_kg) <= 0]
-		if empty:
-			frappe.throw(_("Enter Net Weight for drum row(s) {0}.").format(", ".join(map(str, empty))))
 
 	def check_master_label(self):
 		if not cint(frappe.db.get_single_value("Labelling Settings", "require_master_label")):

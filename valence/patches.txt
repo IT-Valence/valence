@@ -7,3 +7,4 @@
 valence.patches.backfill_shift_assignment_weekly_off
 valence.patches.lrf_drum_labels_phase2
 valence.patches.lrf_drum_labels_phase3
+valence.patches.lrf_send_back
