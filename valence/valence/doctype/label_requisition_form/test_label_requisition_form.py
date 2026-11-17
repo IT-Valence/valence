@@ -33,10 +33,11 @@ def _master(label_no, label_type, status="Approved"):
 	).insert(ignore_permissions=True)
 
 
-def _lrf(batch=BATCH, grade="bp", drums=((25, 3.5, 28.5), (10, 1.25, 11.25)), released=None, **kw):
+def _lrf(batch=BATCH, grade="bp", drums=((25, 3.5), (10, 1.25)), released=None, **kw):
+	"""A Draft LRF as production fills it: drum no., net and tare only."""
 	rows = [
-		dict(drum_no=f"0{i}/0{len(drums)}", net_weight_kg=n, tare_weight_kg=t, observed_weight_kg=o, seal_no=f"s{i}")
-		for i, (n, t, o) in enumerate(drums, start=1)
+		dict(drum_no=f"0{i}/0{len(drums)}", net_weight_kg=n, tare_weight_kg=t)
+		for i, (n, t) in enumerate(drums, start=1)
 	]
 	doc = frappe.get_doc(
 		dict(
@@ -49,10 +50,27 @@ def _lrf(batch=BATCH, grade="bp", drums=((25, 3.5, 28.5), (10, 1.25, 11.25)), re
 	return doc.insert()
 
 
-def _approve(doc):
-	for _ in range(3):  # Draft -> Pending -> Sealed -> Approved (submits)
+def _step(doc, steps=1):
+	for _ in range(steps):  # Draft -> Pending -> Sealed -> Approved (submits)
 		doc = apply_workflow(frappe.get_doc(doc.doctype, doc.name), "Approve")
 	return doc
+
+
+def _qa(doc, container="Ok", seal="Ok", first_seal=10575):
+	"""QA fills its columns on the same rows."""
+	doc = frappe.get_doc(doc.doctype, doc.name)
+	for i, row in enumerate(doc.label_details):
+		row.seal_no = str(first_seal + i)
+		row.container_condition = container
+		row.seal_condition = seal
+	doc.save()
+	return doc
+
+
+def _approve(doc):
+	doc = _step(doc, 1)  # sent for approval: QA's turn
+	_qa(doc)
+	return _step(doc, 2)
 
 
 class TestLabelRequisitionForm(FrappeTestCase):
@@ -85,24 +103,43 @@ class TestLabelRequisitionForm(FrappeTestCase):
 		doc = _lrf()
 		self.assertEqual(doc.grade, "BP")
 		self.assertEqual(doc.released_b_no, "TPHP00 9")
-		self.assertEqual(doc.label_details[0].seal_no, "S1")
 
 	def test_unknown_grade_rejected(self):
 		self.assertRaises(frappe.ValidationError, _lrf, grade="XYZ")
 
-	def test_weights_and_totals(self):
-		doc = _lrf(drums=((25, 3.54, 28.54), (8.4, 3.71, 12.0)))
-		self.assertEqual(doc.label_details[0].gross_weight_kg, 28.54)
-		self.assertEqual(doc.label_details[0].container_condition, "Ok")
-		self.assertEqual(doc.label_details[1].gross_weight_kg, 12.11)
+	def test_weights_totals_and_observed(self):
+		doc = _lrf(drums=((25, 3.54), (8.4, 3.71)))
+		self.assertEqual([r.gross_weight_kg for r in doc.label_details], [28.54, 12.11])
+		# Observed starts equal to Gross; conditions and seals are left for QA
+		self.assertEqual([r.observed_weight_kg for r in doc.label_details], [28.54, 12.11])
+		self.assertEqual([(r.container_condition or "", r.seal_condition or "", r.seal_no or "") for r in doc.label_details],
+			[("", "", ""), ("", "", "")])
+		self.assertEqual((doc.total_net_weight, doc.total_gross_weight), (33.4, 40.65))
+		self.assertEqual([r.no_of_labels_required for r in doc.label_details], [2, 2])
+
+	def test_observed_follows_gross_while_draft(self):
+		doc = _lrf()
+		doc.label_details[0].tare_weight_kg = 3.6
+		doc.save()
+		self.assertEqual(doc.label_details[0].observed_weight_kg, 28.6)
+
+	def test_qa_observed_mismatch_marks_container_not_ok(self):
+		doc = _step(_lrf(), 1)
+		doc.label_details[1].observed_weight_kg = 11.0  # gross is 11.25
+		doc.save()
 		self.assertEqual(doc.label_details[1].container_condition, "Not Ok")
-		self.assertEqual(doc.total_net_weight, 33.4)
-		self.assertEqual(doc.total_gross_weight, 40.65)
 
 	def test_container_tolerance(self):
-		frappe.db.set_single_value("Labelling Settings", "container_weight_tolerance_kg", 0.2)
-		doc = _lrf(drums=((8.4, 3.71, 12.0),))
-		self.assertEqual(doc.label_details[0].container_condition, "Ok")
+		frappe.db.set_single_value("Labelling Settings", "container_weight_tolerance_kg", 0.3)
+		doc = _step(_lrf(), 1)
+		doc.label_details[1].observed_weight_kg = 11.0
+		doc.save()
+		self.assertFalse(doc.label_details[1].container_condition)  # within tolerance: QA decides
+
+	def test_production_columns_locked_once_sent(self):
+		doc = _step(_lrf(), 1)
+		doc.label_details[0].net_weight_kg = 24
+		self.assertRaises(frappe.ValidationError, doc.save)
 
 	def test_header_filled_from_batch(self):
 		doc = _lrf()
@@ -119,6 +156,28 @@ class TestLabelRequisitionForm(FrappeTestCase):
 	def test_approval_happy_path(self):
 		doc = _approve(_lrf())
 		self.assertEqual((doc.docstatus, doc.workflow_state), (1, "Approved"))
+
+	def test_qa_must_finish_before_final_approval(self):
+		doc = _step(_lrf(), 2)  # Sealed, but QA columns empty
+		self.assertRaises(frappe.ValidationError, _step, doc, 1)
+
+	def test_duplicate_seal_refused(self):
+		doc = _step(_lrf(), 1)
+		doc = _qa(doc)
+		doc.label_details[1].seal_no = doc.label_details[0].seal_no
+		doc.save()
+		doc = _step(doc, 1)
+		self.assertRaises(frappe.ValidationError, _step, doc, 1)
+
+	def test_not_ok_needs_qa_remark(self):
+		doc = _step(_lrf(), 1)
+		doc = _qa(doc, seal="Not Ok")
+		doc = _step(doc, 1)
+		self.assertRaises(frappe.ValidationError, _step, doc, 1)
+		doc = frappe.get_doc(doc.doctype, doc.name)
+		doc.remarks_qa = "Seal re-applied, checked by QA."
+		doc.save()
+		self.assertEqual(_step(doc, 1).docstatus, 1)
 
 	def test_bad_dates_save_but_cannot_approve(self):
 		doc = _lrf(batch=BAD_BATCH)  # saving is allowed (warning only)

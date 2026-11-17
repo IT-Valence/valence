@@ -21,12 +21,14 @@ class LabelRequisitionForm(Document):
 		self.clean_label_text()
 		self.calculate_weights()
 		self.set_label_numbers()
+		self.lock_production_columns()
 		self.warn_on_dates()
 
 	def before_submit(self):
 		self.check_dates()
 		self.check_released_qty()
 		self.check_drums()
+		self.check_qa()
 		self.check_master_label()
 
 	def on_submit(self):
@@ -69,23 +71,99 @@ class LabelRequisitionForm(Document):
 			row.drum_no = upper_text(row.drum_no)
 			row.seal_no = upper_text(row.seal_no)
 
+	def labels_per_drum(self):
+		s = frappe.get_cached_doc("Labelling Settings")
+		return cint(s.product_labels_per_drum or 1) + cint(s.identification_labels_per_drum or 1)
+
 	def calculate_weights(self):
-		"""Gross = net + tare per drum, container check, and header totals."""
+		"""Gross = net + tare per drum, QA's observed weight, and header totals.
+
+		Observed Weight starts equal to Gross (while production is still filling the
+		form it simply follows Gross). QA may change it; if it no longer matches Gross
+		the container is marked Not Ok. Ok is never set automatically: QA decides.
+		"""
 		tolerance = flt(frappe.db.get_single_value("Labelling Settings", "container_weight_tolerance_kg"))
 		total_net = total_gross = 0
+		per_drum = self.labels_per_drum()
+		with_qa = self.past_draft()
 		for row in self.label_details:
+			if not cint(row.no_of_labels_required):
+				row.no_of_labels_required = per_drum
 			row.net_weight_kg = flt(row.net_weight_kg, WEIGHT_PRECISION)
 			row.tare_weight_kg = flt(row.tare_weight_kg, WEIGHT_PRECISION)
 			row.gross_weight_kg = flt(row.net_weight_kg + row.tare_weight_kg, WEIGHT_PRECISION)
-			if flt(row.observed_weight_kg) and row.gross_weight_kg:
-				diff = abs(flt(row.observed_weight_kg, WEIGHT_PRECISION) - row.gross_weight_kg)
-				row.container_condition = "Ok" if diff <= tolerance + 1e-9 else "Not Ok"
+			if not with_qa or not flt(row.observed_weight_kg):
+				row.observed_weight_kg = row.gross_weight_kg
+			row.observed_weight_kg = flt(row.observed_weight_kg, WEIGHT_PRECISION)
+			if row.gross_weight_kg and abs(row.observed_weight_kg - row.gross_weight_kg) > tolerance + 1e-9:
+				row.container_condition = "Not Ok"
 			if self.production_item:
 				row.item_code = self.production_item
 			total_net += row.net_weight_kg
 			total_gross += row.gross_weight_kg
 		self.total_net_weight = flt(total_net, WEIGHT_PRECISION)
 		self.total_gross_weight = flt(total_gross, WEIGHT_PRECISION)
+
+	# ---------------------------------------------------------- QA checks
+	# One table, as before. Production fills Drum No. / Net / Tare (Gross is worked out)
+	# while the form is a Draft. Once it is sent for approval those columns lock and QA
+	# fills its columns on the same rows: Observed Wt. (starts equal to Gross), Container,
+	# Seal No. and Seal. Final approval needs QA's columns complete.
+
+	def past_draft(self):
+		"""True once the approval workflow has moved the form past Draft."""
+		state = self.get("workflow_state")
+		return bool(state) and state != "Draft"
+
+	def lock_production_columns(self):
+		before = self.get_doc_before_save()
+		if not before or not self.past_draft() or not before.get("workflow_state") or before.workflow_state == "Draft":
+			return
+
+		def rows(doc):
+			return [
+				(r.drum_no, flt(r.net_weight_kg, WEIGHT_PRECISION), flt(r.tare_weight_kg, WEIGHT_PRECISION))
+				for r in doc.get("label_details") or []
+			]
+
+		if rows(before) != rows(self):
+			frappe.throw(
+				_("Drum No., Net and Tare Weight are production's entries and are locked once the form is sent for approval."),
+				title=_("Production entries are locked"),
+			)
+
+	def check_qa(self):
+		rows = self.label_details
+		missing = {}
+		for r in rows:
+			gaps = [
+				label
+				for label, ok in (
+					(_("Observed Wt."), flt(r.observed_weight_kg) > 0),
+					(_("Container"), bool(r.container_condition)),
+					(_("Seal No."), bool(r.seal_no)),
+					(_("Seal"), bool(r.seal_condition)),
+				)
+				if not ok
+			]
+			if gaps:
+				missing[r.drum_no or str(r.idx)] = gaps
+		if missing:
+			frappe.throw(
+				_("QA has not finished these drums:")
+				+ "<br>"
+				+ "<br>".join(f"{drum}: {', '.join(gaps)}" for drum, gaps in missing.items()),
+				title=_("QA check incomplete"),
+			)
+		seals = [r.seal_no for r in rows]
+		dupes = sorted({s for s in seals if seals.count(s) > 1})
+		if dupes:
+			frappe.throw(_("Seal No. used on more than one drum: {0}.").format(", ".join(dupes)))
+		not_ok = [r.drum_no or str(r.idx) for r in rows if "Not Ok" in (r.container_condition, r.seal_condition)]
+		if not_ok and not (self.remarks_qa or "").strip():
+			frappe.throw(
+				_("Drum(s) {0} are marked Not Ok. Write the reason in Remarks QA before approving.").format(", ".join(not_ok))
+			)
 
 	def set_label_numbers(self):
 		"""Product / Identification label numbers from the approved Master Labels."""
@@ -132,13 +210,6 @@ class LabelRequisitionForm(Document):
 		empty = [row.idx for row in self.label_details if flt(row.net_weight_kg) <= 0]
 		if empty:
 			frappe.throw(_("Enter Net Weight for drum row(s) {0}.").format(", ".join(map(str, empty))))
-		not_ok = [row.drum_no or str(row.idx) for row in self.label_details if row.container_condition == "Not Ok"]
-		if not_ok:
-			frappe.msgprint(
-				_("Container condition is Not Ok for drum(s) {0}.").format(", ".join(not_ok)),
-				indicator="orange",
-				alert=True,
-			)
 
 	def check_master_label(self):
 		if not cint(frappe.db.get_single_value("Labelling Settings", "require_master_label")):

@@ -41,7 +41,10 @@ def _doc(grade="ip", docstatus=1, variant="Standard", drums=2, as_json=False):
 class TestDrumLabels(FrappeTestCase):
 	def setUp(self):
 		_item()
-		for f, v in (("product_labels_per_drum", 1), ("identification_labels_per_drum", 1)):
+		for f, v in (
+			("product_labels_per_drum", 1), ("identification_labels_per_drum", 1),
+			("product_labels_per_page", 2), ("page_layout", "A4 Sheet"),
+		):
 			frappe.db.set_single_value("Labelling Settings", f, v)
 		frappe.clear_document_cache("Labelling Settings", "Labelling Settings")
 
@@ -54,8 +57,10 @@ class TestDrumLabels(FrappeTestCase):
 		_master("L972-00", "Identification")
 		data = get_drum_labels(_doc(as_json=True), "all")  # JSON string, like the printer-icon preview
 		kinds = [l["kind"] for l in data["labels"]]
-		self.assertEqual(kinds, ["identification", "product", "identification", "product"])
-		p = data["labels"][1]
+		# printed as two groups: all Identification stickers, then all Product stickers
+		self.assertEqual(kinds, ["identification", "identification", "product", "product"])
+		self.assertEqual([l["drum"] for l in data["identification_labels"]], ["1 of 2", "2 of 2"])
+		p = data["labels"][2]
 		self.assertEqual(p["title"], "TEST STICKER PRODUCT (IP)")
 		self.assertEqual(p["batch_no"], "TPHP0062 26")
 		self.assertEqual((p["mfg"], p["retest"]), ("OCT-2026", "SEP-2031"))
@@ -64,6 +69,21 @@ class TestDrumLabels(FrappeTestCase):
 		self.assertTrue(p["qr"].startswith("data:image/png;base64,"))  # made in the ERP, no outside site
 		self.assertEqual(data["labels"][0]["label_no"], "L972-00")
 		self.assertEqual(data["watermark"], "")
+
+	def test_product_stickers_two_per_page(self):
+		data = get_drum_labels(_doc(drums=5), "all")
+		self.assertEqual([len(p) for p in data["product_pages"]], [2, 2, 1])
+		self.assertEqual(len(data["identification_labels"]), 5)
+		html = frappe.render_template(
+			'{% set which = "all" %}{% include "valence/templates/labels/drum_labels.html" %}', {"doc": _doc(drums=5)}
+		)
+		self.assertEqual(html.count("vl-new-page"), 3 + 1)  # 3 product pages, each starts a new page (+ css rule)
+
+	def test_gross_is_qa_observed_weight(self):
+		doc = _doc()
+		doc.label_details[0]["observed_weight_kg"] = 28.6
+		p = get_drum_labels(doc, "product")["labels"][0]
+		self.assertEqual((p["gross"], p["net"]), ("28.600", "25.000"))
 
 	def test_only_product_and_copies(self):
 		_master("L971-00", "Product")

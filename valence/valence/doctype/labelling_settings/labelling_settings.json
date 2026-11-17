@@ -14,6 +14,7 @@
   "identification_labels_per_drum",
   "size_section",
   "page_layout",
+  "product_labels_per_page",
   "product_label_width_mm",
   "product_label_height_mm",
   "column_break_size",
@@ -74,7 +75,7 @@
   },
   {
    "default": "A4 Sheet",
-   "description": "A4 Sheet: stickers stacked on A4 pages. One Label Per Page: for a roll/thermal label printer (set the printer's paper to the label size).",
+   "description": "A4 Sheet: Identification stickers first (as many per page as fit), then Product stickers on their own pages. One Label Per Page: for a roll/thermal label printer (set the printer paper to the label size).",
    "fieldname": "page_layout",
    "fieldtype": "Select",
    "label": "Page Layout",
@@ -135,11 +136,19 @@
    "fieldname": "logo",
    "fieldtype": "Attach Image",
    "label": "Logo"
+  },
+  {
+   "default": "2",
+   "fieldname": "product_labels_per_page",
+   "fieldtype": "Int",
+   "label": "Product Labels Per A4 Page",
+   "depends_on": "eval:doc.page_layout==\"A4 Sheet\"",
+   "description": "Product stickers start a new A4 page after this many. Identification stickers fill each page and carry on to the next."
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-11-16 20:00:00.000000",
+ "modified": "2026-11-17 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Valence",
  "name": "Labelling Settings",

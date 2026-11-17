@@ -20,6 +20,7 @@ DEFAULTS = {
 	"identification_label_width_mm": 170,
 	"identification_label_height_mm": 45,
 	"page_layout": "A4 Sheet",
+	"product_labels_per_page": 2,
 	"manufacturer_name": "Valence Labs Pvt Ltd",
 	"manufacturer_address": "Vill. Jansui, Tehsil Rajpura,\nDistt. Patiala. (Punjab).",
 	"logo": "/files/VLPL Logo.jpg",
@@ -95,17 +96,19 @@ def get_drum_labels(doc, which="all"):
 	batch_no = upper_text(doc.get("released_b_no")) or ""
 	mfg, retest = _date(doc.get("manufacturing_date")), _date(doc.get("retestexpiry_date"))
 
-	labels = []
+	ident_labels, product_labels = [], []
 	for pos, row in enumerate(rows, start=1):
 		drum = f"{pos} of {total}"
+		gross = flt(row.get("gross_weight_kg")) or flt(row.get("net_weight_kg")) + flt(row.get("tare_weight_kg"))
 		weights = {
-			"gross": _kg(row.get("gross_weight_kg") or flt(row.get("net_weight_kg")) + flt(row.get("tare_weight_kg"))),
+			# Gross Wt. is what QA read on the scale (Observed Wt.; it starts equal to net + tare).
+			"gross": _kg(flt(row.get("observed_weight_kg")) or gross),
 			"tare": _kg(row.get("tare_weight_kg")),
 			"net": _kg(row.get("net_weight_kg")),
 		}
 		if which in ("all", "identification"):
 			for _ in range(max(1, cint(settings["identification_labels_per_drum"]))):
-				labels.append({"kind": "identification", **ident_base, "batch_no": batch_no, "drum": drum})
+				ident_labels.append({"kind": "identification", **ident_base, "batch_no": batch_no, "drum": drum})
 		if which in ("all", "product"):
 			qr_text = "\n".join(
 				[
@@ -117,16 +120,22 @@ def get_drum_labels(doc, which="all"):
 					f"Tare Wt: {weights['tare']} KG",
 					f"Net Wt: {weights['net']} KG",
 					f"Drum: {drum}",
+					f"Seal No: {upper_text(row.get('seal_no')) or '-'}",
 					f"Label No: {product_base['label_no'] or '-'}",
 					f"LRF: {doc.get('name') or '-'}",
 				]
 			)
 			qr = _qr_data_uri(qr_text)
 			for _ in range(max(1, cint(settings["product_labels_per_drum"]))):
-				labels.append(
+				product_labels.append(
 					{"kind": "product", **product_base, "batch_no": batch_no, "mfg": mfg, "retest": retest,
 					 "drum": drum, "qr": qr, **weights}
 				)
+
+	# Printed as two groups: every Identification sticker first (as many per A4 page as
+	# fit), then the Product stickers, a fixed number per A4 page.
+	per_page = max(1, cint(settings["product_labels_per_page"]))
+	product_pages = [product_labels[i : i + per_page] for i in range(0, len(product_labels), per_page)]
 
 	warnings = []
 	if cint(doc.get("docstatus")) != 1:
@@ -138,7 +147,10 @@ def get_drum_labels(doc, which="all"):
 
 	logo = settings["logo"]
 	return {
-		"labels": labels,
+		"labels": ident_labels + product_labels,
+		"identification_labels": ident_labels,
+		"product_labels": product_labels,
+		"product_pages": product_pages,
 		"watermark": " / ".join(dict.fromkeys(warnings)),
 		"settings": settings,
 		"logo_url": get_url(logo) if logo and logo.startswith("/") else logo,

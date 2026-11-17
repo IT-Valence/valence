@@ -11,6 +11,7 @@
 		margin: 0 auto 6mm auto; page-break-inside: avoid; background: #fff; max-width: 100%;
 	}
 	.vl-nw { white-space: nowrap; }
+	.vl-new-page { page-break-before: always; break-before: page; }
 	.vl-label.product { width: {{ s.product_label_width_mm }}mm; height: {{ s.product_label_height_mm }}mm; }
 	.vl-label.identification { width: {{ s.identification_label_width_mm }}mm; height: {{ s.identification_label_height_mm }}mm; }
 	{% if one_per_page %}.vl-label { margin: 0 auto; page-break-after: always; }{% endif %}
@@ -33,8 +34,7 @@
 	}
 </style>
 
-<div class="vl-sheet">
-{%- for l in data.labels %}
+{%- macro sticker(l, data) %}
 	<div class="vl-label {{ l.kind }}">
 		{%- if data.watermark %}<div class="vl-watermark">{{ data.watermark }}</div>{% endif %}
 		<table><tr><td class="vl-title">{{ l.title }}</td></tr></table>
@@ -106,7 +106,22 @@
 			</tr>
 		</table>
 	</div>
-{%- else %}
+{%- endmacro %}
+
+<div class="vl-sheet">
+{%- if not data.labels %}
 	<p>No drums in Label Details.</p>
+{%- endif %}
+{#- 1. Identification stickers: as many per A4 page as fit, then the next page. #}
+{%- if data.identification_labels %}
+	<div class="vl-group">
+	{%- for l in data.identification_labels %}{{ sticker(l, data) }}{% endfor %}
+	</div>
+{%- endif %}
+{#- 2. Product stickers: their own pages, product_labels_per_page per A4 page. #}
+{%- for page in data.product_pages %}
+	<div class="vl-group{% if not one_per_page and (data.identification_labels or not loop.first) %} vl-new-page{% endif %}">
+	{%- for l in page %}{{ sticker(l, data) }}{% endfor %}
+	</div>
 {%- endfor %}
 </div>
