@@ -184,16 +184,33 @@ const valence_lrf = {
 			);
 		}
 		if (frm.is_new() || !frm.doc.grade) return;
-		if (!frm.doc.product_label_no) {
-			frm.dashboard.add_comment(
-				__("No approved Master Label for {0} grade {1} yet. Labels will print without a Label No.", [
-					frm.doc.production_item,
-					frm.doc.grade,
-				]),
-				"orange",
-				true
-			);
-		}
+		// Older LRFs have no label numbers saved; the stickers look the master up live, so check the same way.
+		frappe
+			.call("valence.valence.doctype.master_label.master_label.get_master_labels", {
+				item: frm.doc.production_item,
+				grade: frm.doc.grade,
+				variant: frm.doc.label_variant || "Standard",
+				customer: frm.doc.customer || null,
+			})
+			.then((r) => {
+				const m = r.message || {};
+				if (!m.product) {
+					frm.dashboard.add_comment(
+						__("No Master Label for {0} grade {1}. Labels print without a Label No. (watermarked).", [
+							frm.doc.production_item,
+							frm.doc.grade,
+						]),
+						"orange",
+						true
+					);
+				} else if (m.product_status !== "Approved") {
+					frm.dashboard.add_comment(
+						__("Master Label {0} is not approved yet: labels print watermarked until QA approves it.", [m.product]),
+						"orange",
+						true
+					);
+				}
+			});
 	},
 };
 
