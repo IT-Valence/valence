@@ -1,8 +1,24 @@
 {#- Intermediate Status Tag (Ref. SOP S-SG-046), laid out like QA's paper tag.
-    One tag per drum, as many per A4 page as fit (tag size in Labelling Settings).
+    One tag per drum, 4 per A4 by default (2 x 2 on a landscape page); tag size and page
+    orientation are in Labelling Settings. Row heights and fonts follow the tag height.
     Data comes from valence.valence.labelling.intermediate_tags.get_intermediate_tags. -#}
 {%- set data = get_intermediate_tags(doc) -%}
 <style>
+	/* Read by Frappe's PDF maker (orientation and margins) and used by the browser's Print. */
+	.print-format {
+		orientation: {{ data.orientation }};
+		margin-top: {{ data.margin_mm }}mm; margin-bottom: {{ data.margin_mm }}mm;
+		margin-left: {{ data.margin_mm }}mm; margin-right: {{ data.margin_mm }}mm;
+	}
+	@page { size: A4 {{ data.orientation|lower }}; margin: {{ data.margin_mm }}mm; }
+	/* The rule above is only read as PDF settings; as CSS it would also push the tags down by
+	   the margin again and spill the last row onto an empty page. Cancel that here. */
+	body .print-format { margin: 0 !important; }
+	/* Screen preview: Frappe draws a portrait-width sheet. Lay the tags out at landscape
+	   width and shrink them to fit it, so the preview looks like the printed page. */
+	{%- if data.orientation == "Landscape" %}
+	@media screen { body .print-format .it-sheet { width: 281mm; zoom: 0.6; } }
+	{%- endif %}
 	/* Frappe's print styles pad every table cell; the ".print-format ... !important" rules
 	   below out-rank them, or each row doubles in height and the bottom of the tag is cut. */
 	.it-sheet { font-family: Arial, Helvetica, sans-serif; color: #000; }
@@ -11,26 +27,29 @@
 		vertical-align: top; width: {{ (100 / data.cols)|round(3) }}%;
 		padding: 0 {{ data.gap_mm / 2 }}mm {{ data.gap_mm }}mm {{ data.gap_mm / 2 }}mm !important; border: 0 !important;
 	}
+	/* No gap under the last row of tags, or it spills onto an empty extra page. */
+	.print-format .it-page tr:last-child td.it-cell { padding-bottom: 0 !important; }
 	.it-new-page { page-break-before: always; break-before: page; }
 	.it-tag {
 		width: 100%; height: {{ data.height_mm }}mm; box-sizing: border-box;
 		border: 1.2px solid #000; overflow: hidden; page-break-inside: avoid; background: #fff;
 	}
 	.it-tag table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0 !important; }
-	/* Fixed row heights so 11 ruled lines + the logo always fit the tag (62 mm by default). */
+	/* Fixed row heights so 11 ruled lines + the logo always fill the tag exactly. */
 	.print-format .it-tag td {
-		font-size: 7.4pt !important; line-height: 1.1 !important; height: 4.25mm; padding: 0 1.6mm !important;
+		font-size: {{ data.font_pt }}pt !important; line-height: 1.1 !important; height: {{ data.row_mm }}mm;
+		padding: 0 2mm !important;
 		vertical-align: middle; border: 0 !important; border-bottom: 1px solid #000 !important;
 		white-space: nowrap; overflow: hidden;
 	}
 	.print-format .it-tag table.it-last tr:last-child td { border-bottom: 0 !important; }
 	.it-l { font-weight: bold; }
 	.it-v { font-weight: normal; }
-	.print-format .it-tag td.it-logo { height: 10.5mm; border-right: 1px solid #000 !important; padding: 0.4mm 1.6mm !important; }
+	.print-format .it-tag td.it-logo { height: {{ data.logo_mm }}mm; border-right: 1px solid #000 !important; padding: 0.6mm 2mm !important; }
 	.it-logo img,
-	body:last-child .print-format .it-tag td.it-logo img { height: 9.5mm !important; width: auto !important; max-width: 100%; }
-	.it-logo-text { font-weight: bold; font-size: 11pt; letter-spacing: 1px; }
-	.print-format .it-tag td.it-title { text-align: center; font-weight: bold; font-size: 8.6pt !important; }
+	body:last-child .print-format .it-tag td.it-logo img { height: {{ data.logo_img_mm }}mm !important; width: auto !important; max-width: 100%; }
+	.it-logo-text { font-weight: bold; font-size: {{ data.title_pt + 3 }}pt; letter-spacing: 1px; }
+	.print-format .it-tag td.it-title { text-align: center; font-weight: bold; font-size: {{ data.title_pt }}pt !important; }
 	.it-center { text-align: center; font-weight: bold; }
 	.it-right { text-align: right; font-weight: bold; }
 	.it-sep { border-left: 1px solid #000; }

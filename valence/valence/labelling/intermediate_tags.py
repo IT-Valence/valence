@@ -20,16 +20,19 @@ from valence.valence.labelling.normalize import upper_text
 
 DOCTYPE = "Intermediate Label"
 MAX_DRUMS = 500
-# The PDF maker leaves about 15 mm at each page edge (measured on the printed PDF).
-A4_WIDTH_MM, A4_HEIGHT_MM, PAGE_MARGIN_MM, GAP_MM = 210, 297, 15, 3
+# A4 in mm; the template sets the same page margin for the PDF maker and the browser.
+A4_SHORT_MM, A4_LONG_MM, PAGE_MARGIN_MM, GAP_MM = 210, 297, 8, 3
+LOGO_SHARE = 0.17  # part of the tag height for the logo row; the 11 text rows share the rest
 
 DEFAULTS = {
 	"intermediate_item_group": "Intermediates",
 	"default_drum_size_kg": 25,
 	"default_tare_kg": 0,
 	"merge_last_drum_below_kg": 0,
-	"intermediate_tag_width_mm": 88,
-	"intermediate_tag_height_mm": 62,
+	# QA's tag sheet: 4 tags per A4, 2 across and 2 down on a landscape page.
+	"intermediate_tag_orientation": "Landscape",
+	"intermediate_tag_width_mm": 138,
+	"intermediate_tag_height_mm": 92,
 	"intermediate_tag_sop_no": "S-SG-046",
 	"manufacturer_name": "Valence Labs Pvt Ltd",
 	"logo": "/files/VLPL Logo.jpg",
@@ -219,12 +222,31 @@ def _date(value):
 	return getdate(value).strftime("%d-%m-%Y") if value else ""
 
 
+def _landscape(s):
+	return (s.get("intermediate_tag_orientation") or "Landscape") == "Landscape"
+
+
 def _grid(s):
+	"""Tags across and down an A4 page; the tags share the page width equally."""
 	width, height = flt(s["intermediate_tag_width_mm"]), flt(s["intermediate_tag_height_mm"])
-	usable_w, usable_h = A4_WIDTH_MM - 2 * PAGE_MARGIN_MM, A4_HEIGHT_MM - 2 * PAGE_MARGIN_MM
+	page_w, page_h = (A4_LONG_MM, A4_SHORT_MM) if _landscape(s) else (A4_SHORT_MM, A4_LONG_MM)
+	usable_w, usable_h = page_w - 2 * PAGE_MARGIN_MM, page_h - 2 * PAGE_MARGIN_MM
 	cols = max(1, int((usable_w + GAP_MM) // (width + GAP_MM)))
 	rows = max(1, int((usable_h + GAP_MM) // (height + GAP_MM)))
 	return cols, rows
+
+
+def _sizes(height):
+	"""Row height and font size that fill a tag of this height (logo row + 11 ruled rows)."""
+	logo = round(height * LOGO_SHARE, 2)
+	row = round((height - logo - 1.5) / 11, 2)
+	return {
+		"logo_mm": logo,
+		"logo_img_mm": round(logo - 1.2, 2),
+		"row_mm": row,
+		"font_pt": round(min(12, row * 1.6), 1),
+		"title_pt": round(min(14, row * 1.85), 1),
+	}
 
 
 def get_intermediate_tags(doc):
@@ -265,6 +287,9 @@ def get_intermediate_tags(doc):
 		"width_mm": flt(s["intermediate_tag_width_mm"]),
 		"height_mm": flt(s["intermediate_tag_height_mm"]),
 		"gap_mm": GAP_MM,
+		"margin_mm": PAGE_MARGIN_MM,
+		"orientation": "Landscape" if _landscape(s) else "Portrait",
+		**_sizes(flt(s["intermediate_tag_height_mm"])),
 		"sop_no": s["intermediate_tag_sop_no"],
 		"company": upper_text(s["manufacturer_name"]),
 		"logo_url": logo_url(s["logo"]),
