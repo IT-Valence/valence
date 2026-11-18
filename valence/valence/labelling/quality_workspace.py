@@ -1,4 +1,5 @@
-"""Labelling buttons on the Quality page (Quality workspace shortcuts).
+"""Labelling buttons on the Quality page (Quality workspace shortcuts), and the
+Intermediate Tag button on the Manufacturing page (production prints those tags).
 
 The Quality page belongs to ERPNext and each site keeps its own edited copy in the
 database (on Valence's sites it already has an "LRF-Label Requisition Form" button next
@@ -23,12 +24,22 @@ BUTTONS = (
 	{"label": "Customize Labelling", "link_to": "Labelling Settings", "doc_view": ""},
 )
 
+# Production prints intermediate tags, so their button sits on the Manufacturing page.
+MANUFACTURING_BUTTONS = (
+	{"label": "Intermediate Tag", "link_to": "Intermediate Label", "doc_view": "List", "stats_filter": "[]"},
+)
+
 
 def ensure_quality_buttons():
-	if not frappe.db.exists("Workspace", "Quality"):
-		return
 	_remove_old_labelling_section()
-	ws = frappe.get_doc("Workspace", "Quality")
+	_ensure_buttons("Quality", BUTTONS)
+	_ensure_buttons("Manufacturing", MANUFACTURING_BUTTONS)
+
+
+def _ensure_buttons(workspace, buttons):
+	if not frappe.db.exists("Workspace", workspace):
+		return
+	ws = frappe.get_doc("Workspace", workspace)
 	try:
 		content = json.loads(ws.content or "[]")
 	except ValueError:
@@ -40,7 +51,7 @@ def ensure_quality_buttons():
 	by_target = {s.link_to: s for s in ws.shortcuts}
 	next_idx = max([s.idx for s in ws.shortcuts] or [0]) + 1
 	changed = False
-	for button in BUTTONS:
+	for button in buttons:
 		row = by_target.get(button["link_to"])
 		if not row:
 			row = frappe.get_doc(

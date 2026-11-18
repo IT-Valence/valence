@@ -1,7 +1,7 @@
 {
  "actions": [],
  "creation": "2026-11-16 19:00:00.000000",
- "description": "Rules and sticker layout for drum labels on the Label Requisition Form.",
+ "description": "Rules and sticker layout for drum labels on the Label Requisition Form, and for Intermediate Status Tags.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -24,9 +24,79 @@
   "manufacturer_name",
   "manufacturer_address",
   "column_break_manufacturer",
-  "logo"
+  "logo",
+  "intermediate_section",
+  "intermediate_item_group",
+  "default_drum_size_kg",
+  "default_tare_kg",
+  "merge_last_drum_below_kg",
+  "column_break_intermediate",
+  "intermediate_tag_width_mm",
+  "intermediate_tag_height_mm",
+  "intermediate_tag_sop_no"
  ],
  "fields": [
+  {
+   "fieldname": "intermediate_section",
+   "fieldtype": "Section Break",
+   "label": "Intermediate Status Tags"
+  },
+  {
+   "default": "Intermediates",
+   "description": "Manufacturing an item of this group makes an Intermediate Status Tag record.",
+   "fieldname": "intermediate_item_group",
+   "fieldtype": "Link",
+   "label": "Intermediate Item Group",
+   "options": "Item Group"
+  },
+  {
+   "default": "25",
+   "description": "Starting drum size on a new tag record. Production can change it per batch.",
+   "fieldname": "default_drum_size_kg",
+   "fieldtype": "Float",
+   "label": "Default Drum Size (Kg)",
+   "precision": "3"
+  },
+  {
+   "default": "0",
+   "description": "Empty drum weight copied to every drum. 0 = production fills it.",
+   "fieldname": "default_tare_kg",
+   "fieldtype": "Float",
+   "label": "Default Tare Wt. Per Drum (Kg)",
+   "precision": "3"
+  },
+  {
+   "default": "0",
+   "description": "A last drum lighter than this is added to the drum before it instead (401 kg in 25 kg drums with 5: 15 x 25 kg + 1 x 26 kg). 0 = the last drum always keeps what is left.",
+   "fieldname": "merge_last_drum_below_kg",
+   "fieldtype": "Float",
+   "label": "Add A Small Last Drum To The One Before Below (Kg)",
+   "precision": "3"
+  },
+  {
+   "fieldname": "column_break_intermediate",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "88",
+   "description": "Tags share the page width: 88 mm gives 2 across an A4 page.",
+   "fieldname": "intermediate_tag_width_mm",
+   "fieldtype": "Float",
+   "label": "Tag Width (mm)"
+  },
+  {
+   "default": "62",
+   "description": "62 mm fits 8 tags on an A4 page (2 across, 4 down). Taller tags fit fewer per page.",
+   "fieldname": "intermediate_tag_height_mm",
+   "fieldtype": "Float",
+   "label": "Tag Height (mm)"
+  },
+  {
+   "default": "S-SG-046",
+   "fieldname": "intermediate_tag_sop_no",
+   "fieldtype": "Data",
+   "label": "Tag Ref. SOP No."
+  },
   {
    "fieldname": "rules_section",
    "fieldtype": "Section Break",
@@ -148,7 +218,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-11-17 15:00:00.000000",
+ "modified": "2026-11-18 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Valence",
  "name": "Labelling Settings",

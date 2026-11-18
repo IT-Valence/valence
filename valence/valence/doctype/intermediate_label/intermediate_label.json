@@ -1,0 +1,283 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-11-18 10:00:00.000000",
+ "default_print_format": "Intermediate Status Tag",
+ "description": "Intermediate Status Tags (Ref. SOP S-SG-046): one tag per drum of an intermediate batch. Made automatically when an intermediate is manufactured; production picks the Plant and Wet/Dry, checks the drums and prints.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "source_section",
+  "stock_entry",
+  "batch_no",
+  "column_break_source",
+  "item_code",
+  "product_name",
+  "stage",
+  "tag_section",
+  "plant",
+  "material_status",
+  "column_break_tag",
+  "mfg_date",
+  "retest_date",
+  "drums_section",
+  "total_qty",
+  "drum_size",
+  "column_break_drums",
+  "tare_per_drum",
+  "split_drums",
+  "column_break_totals",
+  "no_of_containers",
+  "net_total",
+  "containers",
+  "sign_section",
+  "done_by",
+  "column_break_sign",
+  "checked_by",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "default": "ITAG-.YY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "ITAG-.YY.-.#####"
+  },
+  {
+   "fieldname": "source_section",
+   "fieldtype": "Section Break",
+   "label": "Batch"
+  },
+  {
+   "description": "Picking the Manufacture entry fills the item, batch, total qty and dates.",
+   "fieldname": "stock_entry",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Manufacture Stock Entry",
+   "options": "Stock Entry"
+  },
+  {
+   "fieldname": "batch_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Batch No.",
+   "options": "Batch",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_source",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Intermediate Item",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "product_name",
+   "fieldtype": "Data",
+   "label": "Product Name"
+  },
+  {
+   "fieldname": "stage",
+   "fieldtype": "Data",
+   "label": "Stage"
+  },
+  {
+   "fieldname": "tag_section",
+   "fieldtype": "Section Break",
+   "label": "Tag Details"
+  },
+  {
+   "fieldname": "plant",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Plant",
+   "options": "\nPP\nPR 1\nPR 2",
+   "reqd": 1
+  },
+  {
+   "fieldname": "material_status",
+   "fieldtype": "Select",
+   "label": "Material Status",
+   "options": "\nWET\nDRY",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_tag",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "mfg_date",
+   "fieldtype": "Date",
+   "label": "Mfg. Date"
+  },
+  {
+   "fieldname": "retest_date",
+   "fieldtype": "Date",
+   "label": "Retest Date"
+  },
+  {
+   "fieldname": "drums_section",
+   "fieldtype": "Section Break",
+   "label": "Containers"
+  },
+  {
+   "fieldname": "total_qty",
+   "fieldtype": "Float",
+   "label": "Total Qty (Kg)",
+   "precision": "3",
+   "reqd": 1
+  },
+  {
+   "default": "25",
+   "description": "Any size, e.g. 20, 22.5 or 40. Changing it splits the drums again.",
+   "fieldname": "drum_size",
+   "fieldtype": "Float",
+   "label": "Drum Size (Kg)",
+   "precision": "3"
+  },
+  {
+   "fieldname": "column_break_drums",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Empty drum weight, copied to every drum. Each drum can still be changed below.",
+   "fieldname": "tare_per_drum",
+   "fieldtype": "Float",
+   "label": "Tare Wt. Per Drum (Kg)",
+   "precision": "3"
+  },
+  {
+   "fieldname": "split_drums",
+   "fieldtype": "Button",
+   "label": "Split Into Drums Again"
+  },
+  {
+   "fieldname": "column_break_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "no_of_containers",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Total No. of Containers",
+   "read_only": 1
+  },
+  {
+   "description": "Sum of the drums' Net Wt. Should equal Total Qty.",
+   "fieldname": "net_total",
+   "fieldtype": "Float",
+   "label": "Drums Add Up To (Kg)",
+   "precision": "3",
+   "read_only": 1
+  },
+  {
+   "fieldname": "containers",
+   "fieldtype": "Table",
+   "label": "Drums",
+   "options": "Intermediate Label Container"
+  },
+  {
+   "fieldname": "sign_section",
+   "fieldtype": "Section Break",
+   "label": "Sign-off"
+  },
+  {
+   "default": "__user",
+   "fieldname": "done_by",
+   "fieldtype": "Link",
+   "label": "Done By",
+   "options": "User"
+  },
+  {
+   "fieldname": "column_break_sign",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Leave empty to sign by hand on the printed tag.",
+   "fieldname": "checked_by",
+   "fieldtype": "Link",
+   "label": "Checked By",
+   "options": "User"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Valence",
+ "name": "Intermediate Label",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Manufacturing Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Manufacturing User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Stock Manager"
+  },
+  {
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Quality Manager"
+  }
+ ],
+ "search_fields": "item_code,batch_no",
+ "show_title_field_in_link": 0,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "product_name",
+ "track_changes": 1
+}

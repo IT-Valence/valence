@@ -50,7 +50,7 @@ doctype_js = {"Work Order" : "public/js/work_order.js",
 			"Production Plan":"public/js/production_plan.js",
 			"Sales Invoice":"public/js/sales_invoice.js",
 			"Delivery Note":"public/js/delivery_note.js",
-			"Stock Entry":"public/js/stock_entry.js",
+			"Stock Entry":["public/js/stock_entry.js", "public/js/stock_entry_intermediate_tag.js"],
             "Attendance":"public/js/attendance.js",
             "Batch":"public/js/batch.js",
             "Quality Inspection":"public/js/quality_inspection.js",
@@ -98,6 +98,7 @@ jinja = {
 		"valence.valence.jinja.get_batch_and_lot_number_from_serial_and_batch_bundle",
 		"valence.valence.labelling.drum_labels.get_drum_labels",
 		"valence.valence.labelling.drum_labels.get_master_label_print",
+		"valence.valence.labelling.intermediate_tags.get_intermediate_tags",
 	],
 	# "filters": "valence.utils.jinja_filters"
 }
@@ -203,7 +204,7 @@ doc_events = {
 		"before_submit":"valence.valence.doc_events.quality_inspection.before_submit",
 	},
     "Stock Entry":{
-        "on_submit":["valence.valence.doc_events.stock_entry.on_submit","valence.valence.doc_events.stock_entry.validate_manufacture_entry"],
+        "on_submit":["valence.valence.doc_events.stock_entry.on_submit","valence.valence.doc_events.stock_entry.validate_manufacture_entry","valence.valence.labelling.intermediate_tags.on_stock_entry_submit"],
 		# "before_submit":"valence.valence.doc_events.stock_entry.stock_entry_quality_inspection_validation",
 		"on_cancel":"valence.valence.doc_events.stock_entry.on_cancel_manufacture_entry",
 		"validate":"valence.valence.doc_events.stock_entry.validate"
