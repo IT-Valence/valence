@@ -99,10 +99,22 @@ def _master_fields(ml, item_name="", grade=""):
 	}
 
 
+# The Valence Labs logo from QA's Word label masters, shipped with the app so every
+# label prints it even on a site where no logo file has been uploaded.
+APP_LOGO = "/assets/valence/images/valence_logo.png"
+
+
+def logo_url(logo):
+	"""Full URL of the label logo: the one set in Labelling Settings when that file
+	exists on this site, otherwise the logo that comes with the app."""
+	if not logo or (logo.startswith("/files/") and not frappe.db.exists("File", {"file_url": logo})):
+		logo = APP_LOGO
+	return get_url(logo) if logo.startswith("/") else logo
+
+
 def _manufacturer(settings):
-	logo = settings["logo"]
 	return {
-		"logo_url": get_url(logo) if logo and logo.startswith("/") else logo,
+		"logo_url": logo_url(settings["logo"]),
 		"manufacturer_name": settings["manufacturer_name"],
 		"manufacturer_lines": [l for l in (settings["manufacturer_address"] or "").splitlines() if l.strip()],
 	}

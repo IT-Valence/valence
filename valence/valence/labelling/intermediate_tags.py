@@ -14,7 +14,7 @@ import math
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, get_url, getdate
+from frappe.utils import cint, flt, getdate
 
 from valence.valence.labelling.normalize import upper_text
 
@@ -257,9 +257,8 @@ def get_intermediate_tags(doc):
 	cols, per_col = _grid(s)
 	per_page = cols * per_col
 	pages = [tags[i : i + per_page] for i in range(0, len(tags), per_page)]
-	logo = s["logo"]
-	if logo and logo.startswith("/files/") and not frappe.db.exists("File", {"file_url": logo}):
-		logo = None  # no logo uploaded on this site: the tag prints "VALENCE LABS" as text
+	from valence.valence.labelling.drum_labels import logo_url
+
 	return {
 		"pages": [[page[i : i + cols] for i in range(0, len(page), cols)] for page in pages],
 		"cols": cols,
@@ -268,5 +267,5 @@ def get_intermediate_tags(doc):
 		"gap_mm": GAP_MM,
 		"sop_no": s["intermediate_tag_sop_no"],
 		"company": upper_text(s["manufacturer_name"]),
-		"logo_url": get_url(logo) if logo and logo.startswith("/") else logo,
+		"logo_url": logo_url(s["logo"]),
 	}
