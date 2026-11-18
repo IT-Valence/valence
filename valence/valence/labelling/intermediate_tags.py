@@ -142,9 +142,28 @@ def values_from_batch(batch_no):
 	return values
 
 
+def gets_tag(item_code):
+	"""An intermediate that is not the final stage (the final stage gets an LRF instead)."""
+	return is_intermediate(item_code) and not cint(frappe.db.get_value("Item", item_code, "custom_is_final_stage"))
+
+
 def _finished_rows(se):
-	rows = [r for r in se.get("items") or [] if cint(r.get("is_finished_item")) and is_intermediate(r.get("item_code"))]
-	return rows
+	return [r for r in se.get("items") or [] if cint(r.get("is_finished_item")) and gets_tag(r.get("item_code"))]
+
+
+@frappe.whitelist()
+def tag_buttons(stock_entry):
+	"""For the Stock Entry form: the entry's tags, and whether it made an intermediate that gets one."""
+	se = frappe.get_doc("Stock Entry", stock_entry)
+	se.check_permission("read")
+	tags = frappe.get_all(DOCTYPE, filters={"stock_entry": se.name}, pluck="name")
+	return {"tags": tags, "can_make": bool(_finished_rows(se)) if se.purpose == "Manufacture" else False}
+
+
+@frappe.whitelist()
+def item_query_filters():
+	"""Item picker on the tag form: the Labelling Settings item group, final stage left out."""
+	return {"item_group": tag_settings()["intermediate_item_group"], "custom_is_final_stage": 0}
 
 
 @frappe.whitelist()
@@ -179,15 +198,14 @@ def on_stock_entry_submit(doc, method=None):
 	"""
 	if doc.get("purpose") != "Manufacture" or not frappe.db.exists("DocType", DOCTYPE):
 		return
-	for row in _finished_rows(doc):
-		if cint(frappe.db.get_value("Item", row.item_code, "custom_is_final_stage")):
-			continue  # final-stage items get a Label Requisition Form instead
+	for row in _finished_rows(doc):  # final-stage items get a Label Requisition Form instead
 		if frappe.db.exists(DOCTYPE, {"stock_entry": doc.name, "item_code": row.item_code, "batch_no": row.batch_no}):
 			continue
 		savepoint = "intermediate_tag"
 		frappe.db.savepoint(savepoint)
 		try:
-			tag = make_tag(doc, row)
+			old = _tag_of_amended(doc, row)
+			tag = update_tag(old, doc, row) if old else make_tag(doc, row)
 			frappe.msgprint(
 				_("Intermediate Status Tag {0} made for {1}: pick the Plant and Wet/Dry, then print.").format(
 					frappe.utils.get_link_to_form(DOCTYPE, tag.name), row.item_code
@@ -198,6 +216,53 @@ def on_stock_entry_submit(doc, method=None):
 		except Exception:
 			frappe.db.rollback(save_point=savepoint)
 			frappe.log_error(title=f"Intermediate tag not made for {doc.name}")
+
+
+def _tag_of_amended(se, row):
+	"""The tag of the cancelled entry this one corrects (MAT-STE-1 -> MAT-STE-1-1), if any."""
+	if not se.get("amended_from"):
+		return None
+	return frappe.db.get_value(DOCTYPE, {"stock_entry": se.amended_from, "item_code": row.item_code})
+
+
+def update_tag(name, se, row):
+	"""Corrected entry: the same tag moves to it, with the new qty split into drums again.
+	Plant, Wet/Dry and Checked By that production already picked are kept."""
+	tag = frappe.get_doc(DOCTYPE, name)
+	values = _values_from_row(se, row)
+	tag.update({k: values[k] for k in ("stock_entry", "batch_no", "total_qty")})
+	tag.update({k: values[k] for k in ("mfg_date", "retest_date") if values.get(k)})
+	tag.set("containers", [])  # re-split from the corrected total
+	tag.add_comment("Comment", _("Moved from cancelled {0} to {1}; drums split again.").format(se.amended_from, se.name))
+	tag.flags.ignore_mandatory = True
+	tag.flags.ignore_permissions = True
+	tag.save()
+	return tag
+
+
+def on_stock_entry_cancel(doc, method=None):
+	"""A cancelled Manufacture entry: its tags are marked so nobody prints them by mistake.
+	They are not deleted; submitting the corrected (amended) entry moves them to it."""
+	if doc.get("purpose") != "Manufacture" or not frappe.db.exists("DocType", DOCTYPE):
+		return
+	try:
+		_mark_cancelled(doc)
+	except Exception:
+		frappe.log_error(title=f"Intermediate tag not marked for cancelled {doc.name}")  # never stop the cancel
+
+
+def _mark_cancelled(doc):
+	for name in frappe.get_all(DOCTYPE, filters={"stock_entry": doc.name}, pluck="name"):
+		frappe.get_doc(DOCTYPE, name).add_comment(
+			"Comment", _("Stock Entry {0} was cancelled. Do not print this tag until the entry is corrected.").format(doc.name)
+		)
+		frappe.msgprint(
+			_("Intermediate Tag {0} belongs to this cancelled entry. Do not print it until the entry is corrected.").format(
+				frappe.utils.get_link_to_form(DOCTYPE, name)
+			),
+			indicator="orange",
+			alert=True,
+		)
 
 
 def make_tag(se, row):

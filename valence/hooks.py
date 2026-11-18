@@ -206,7 +206,7 @@ doc_events = {
     "Stock Entry":{
         "on_submit":["valence.valence.doc_events.stock_entry.on_submit","valence.valence.doc_events.stock_entry.validate_manufacture_entry","valence.valence.labelling.intermediate_tags.on_stock_entry_submit"],
 		# "before_submit":"valence.valence.doc_events.stock_entry.stock_entry_quality_inspection_validation",
-		"on_cancel":"valence.valence.doc_events.stock_entry.on_cancel_manufacture_entry",
+		"on_cancel":["valence.valence.doc_events.stock_entry.on_cancel_manufacture_entry","valence.valence.labelling.intermediate_tags.on_stock_entry_cancel"],
 		"validate":"valence.valence.doc_events.stock_entry.validate"
 
     },

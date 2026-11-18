@@ -155,7 +155,7 @@ def _names_of(row):
 	"""Product names a master label answers to: its title, the register name, its item's name."""
 	names = [row.get("printed_title"), row.get("product_name")]
 	if row.get("item"):
-		names.append(frappe.db.get_value("Item", row.get("item"), "item_name"))
+		names.append(frappe.get_cached_value("Item", row.get("item"), "item_name"))  # cached: called per candidate
 	return [product_key(n) for n in names if n]
 
 

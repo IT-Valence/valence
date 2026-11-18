@@ -9,7 +9,10 @@ const IL_METHODS = "valence.valence.labelling.intermediate_tags";
 frappe.ui.form.on("Intermediate Label", {
 	setup(frm) {
 		frm.set_query("stock_entry", () => ({ filters: { purpose: "Manufacture", docstatus: 1 } }));
-		frm.set_query("item_code", () => ({ filters: { item_group: "Intermediates" } }));
+		// item group from Labelling Settings, final-stage items left out (they get an LRF)
+		frm.__il_item_filters = { item_group: "Intermediates", custom_is_final_stage: 0 };
+		frappe.call(`${IL_METHODS}.item_query_filters`).then((r) => r.message && (frm.__il_item_filters = r.message));
+		frm.set_query("item_code", () => ({ filters: frm.__il_item_filters }));
 		frm.set_query("batch_no", () => (frm.doc.item_code ? { filters: { item: frm.doc.item_code } } : {}));
 	},
 

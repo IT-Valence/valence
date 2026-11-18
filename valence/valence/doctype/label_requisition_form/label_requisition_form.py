@@ -7,7 +7,7 @@ from frappe.model.document import Document
 from frappe.utils import cint, flt, formatdate, get_url_to_form, getdate
 
 from valence.valence.doctype.master_label.master_label import find_master_label
-from valence.valence.labelling.normalize import normalize_grade, upper_text
+from valence.valence.labelling.normalize import label_grade, split_grades, upper_text
 
 WEIGHT_PRECISION = 3
 
@@ -86,10 +86,17 @@ class LabelRequisitionForm(Document):
 	def clean_label_text(self):
 		"""Anything printed on the drum is stored trimmed and in CAPITALS."""
 		if self.grade:
-			grade = normalize_grade(self.grade)
-			if not grade:
-				frappe.throw(_("Grade {0} is not one of IP, BP, USP, EP, IH, NA.").format(frappe.bold(self.grade)))
-			self.grade = grade
+			# 'bp' -> BP, 'ip/bp' -> IP/BP (dual grade). Anything else is kept as typed so an
+			# older form can still be saved; final approval asks for a real grade.
+			self.grade = label_grade(self.grade)
+			if not split_grades(self.grade):
+				frappe.msgprint(
+					_("Grade {0} is not one of IP, BP, USP, EP, IH, NA. Correct it before final approval.").format(
+						frappe.bold(self.grade)
+					),
+					indicator="orange",
+					alert=True,
+				)
 		self.released_b_no = upper_text(self.released_b_no)
 		if flt(self.released_qty_kgs) < 0:
 			frappe.throw(_("Released Qty (Kgs) cannot be negative."))
@@ -242,6 +249,13 @@ class LabelRequisitionForm(Document):
 				),
 				title=_("Label details missing"),
 			)
+		if not split_grades(self.grade):
+			frappe.throw(
+				_("Grade {0} is not one of IP, BP, USP, EP, IH, NA (or two of them, e.g. IP/BP).").format(
+					frappe.bold(self.grade)
+				),
+				title=_("Label details missing"),
+			)
 
 	def warn_other_lrfs(self):
 		if not self.production_b_no or self.flags.in_test:
@@ -266,8 +280,9 @@ class LabelRequisitionForm(Document):
 			return
 
 		def rows(doc):
+			# compared as cleaned on save, so forms saved before the clean-up are not "changed"
 			return [
-				(r.drum_no, flt(r.net_weight_kg, WEIGHT_PRECISION), flt(r.tare_weight_kg, WEIGHT_PRECISION))
+				(upper_text(r.drum_no), flt(r.net_weight_kg, WEIGHT_PRECISION), flt(r.tare_weight_kg, WEIGHT_PRECISION))
 				for r in doc.get("label_details") or []
 			]
 

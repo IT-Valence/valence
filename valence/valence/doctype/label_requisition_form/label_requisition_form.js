@@ -5,17 +5,24 @@
 const valence_lrf = {
 	PRECISION: 3,
 
-	fill_from_batch(frm) {
-		if (frm.doc.docstatus !== 0 || !frm.doc.production_b_no || cint(frm.doc.no_of_packages)) return;
+	// changed: the user picked another batch, so its dates replace the old batch's.
+	// Otherwise (form opened) only an untouched form is filled.
+	fill_from_batch(frm, changed) {
+		if (frm.doc.docstatus !== 0 || !frm.doc.production_b_no || valence_lrf.qa_stage(frm)) return;
+		if (!changed && cint(frm.doc.no_of_packages)) return;
 		frappe.db.get_doc("Batch", frm.doc.production_b_no).then((batch) => {
 			frm.set_value("batch_size_kgs", batch.batch_qty || 0);
 			frm.set_value("manufacturing_date", batch.manufacturing_date || null);
 			frm.set_value("lot_no", batch.lot_no || null);
 			frm.set_value("retestexpiry_date", batch.retest_date || batch.expiry_date || null);
-			if (cint(batch.no_of_packages) > 0) {
+			if (cint(batch.no_of_packages) > 0 && cint(batch.no_of_packages) !== cint(frm.doc.no_of_packages)) {
 				frm.set_value("no_of_packages", String(cint(batch.no_of_packages)));
 			}
 		});
+	},
+
+	remember_packages(frm) {
+		frm.__lrf_packages = frm.doc.no_of_packages;
 	},
 
 	make_drum_rows(frm, total) {
@@ -30,6 +37,7 @@ const valence_lrf = {
 		}
 		frm.refresh_field("label_details");
 		valence_lrf.totals(frm);
+		valence_lrf.remember_packages(frm);
 	},
 
 	row_weights(frm, cdt, cdn) {
@@ -159,19 +167,23 @@ const valence_lrf = {
 
 	// QA types the first seal number; empty rows below continue the sequence (10575, 10576, ...).
 	seal_sequence(frm, cdt, cdn) {
+		if (valence_lrf.filling_seals) return; // the rows filled below must not start their own sequence
 		const row = locals[cdt][cdn];
 		const m = /^(.*?)(\d+)$/.exec((row.seal_no || "").trim().toUpperCase());
 		if (!m) return;
 		const [, prefix, digits] = m;
 		let n = parseInt(digits, 10);
+		valence_lrf.filling_seals = true;
+		const done = [];
 		(frm.doc.label_details || [])
 			.filter((r) => r.idx > row.idx)
 			.sort((a, b) => a.idx - b.idx)
 			.forEach((r) => {
 				if (r.seal_no) return;
 				n += 1;
-				frappe.model.set_value(r.doctype, r.name, "seal_no", prefix + String(n).padStart(digits.length, "0"));
+				done.push(frappe.model.set_value(r.doctype, r.name, "seal_no", prefix + String(n).padStart(digits.length, "0")));
 			});
+		Promise.all(done).finally(() => (valence_lrf.filling_seals = false));
 	},
 
 	show_label_status(frm) {
@@ -236,23 +248,29 @@ frappe.ui.form.on("Label Requisition Form", {
 	},
 
 	refresh(frm) {
+		valence_lrf.remember_packages(frm);
 		valence_lrf.show_label_status(frm);
 		valence_lrf.print_buttons(frm);
 		valence_lrf.qa_view(frm);
 	},
 
 	production_b_no(frm) {
-		valence_lrf.fill_from_batch(frm);
+		valence_lrf.fill_from_batch(frm, true);
 	},
 
 	no_of_packages(frm) {
 		const total = cint(frm.doc.no_of_packages);
-		if (frm.doc.docstatus !== 0 || total <= 0) return;
+		if (frm.doc.docstatus !== 0 || total <= 0 || frm.__lrf_restoring) return;
+		if (total === cint(frm.__lrf_packages) && (frm.doc.label_details || []).length === total) return;
 		if ((frm.doc.label_details || []).length) {
 			frappe.confirm(
 				__("Changing the number of containers will reset the existing label details. Do you want to continue?"),
 				() => valence_lrf.make_drum_rows(frm, total),
-				() => frm.reload_doc()
+				() => {
+					// keep the drums and everything typed; only put the old number back
+					frm.__lrf_restoring = true;
+					frm.set_value("no_of_packages", frm.__lrf_packages || "").finally(() => (frm.__lrf_restoring = false));
+				}
 			);
 		} else {
 			valence_lrf.make_drum_rows(frm, total);

@@ -43,16 +43,45 @@ def upper_text(value):
 	return value.upper() if value else value
 
 
-def normalize_grade(value):
-	"""Map free-typed grades to one of GRADES. Returns None if it can't be mapped."""
-	key = (clean_text(value) or "").upper()
-	key = re.sub(r"\(.*?\)", "", key).strip()  # drop "(With Neutral code)" etc.
+_GRADE_SPLIT = re.compile(r"\s*(?:/|,|&|\+|\bAND\b)\s*")
+
+
+def _one_grade(key):
 	if key in _GRADE_ALIASES:
 		return _GRADE_ALIASES[key]
 	for alias, grade in _GRADE_ALIASES.items():
-		if alias and key.startswith(alias):
+		if alias and key.startswith(alias):  # "USP-NF", "IP 2022"
 			return grade
 	return None
+
+
+def split_grades(value):
+	"""'ip/bp' / 'IP, BP' -> ['IP', 'BP']; 'usp' -> ['USP']. None if any part is not a grade."""
+	key = (clean_text(value) or "").upper()
+	key = re.sub(r"\(.*?\)", "", key).strip()  # drop "(With Neutral code)" etc.
+	if key in _GRADE_ALIASES:
+		return [_GRADE_ALIASES[key]]
+	codes = []
+	for part in _GRADE_SPLIT.split(key):
+		grade = _one_grade(part.strip())
+		if not grade:
+			return None
+		if grade not in codes:
+			codes.append(grade)
+	return codes or None
+
+
+def normalize_grade(value):
+	"""Map a free-typed grade to ONE of GRADES. None if it can't be mapped or names
+	several grades ('IP/BP' is a dual grade, not IP)."""
+	codes = split_grades(value)
+	return codes[0] if codes and len(codes) == 1 else None
+
+
+def label_grade(value):
+	"""Grade as printed on a label: 'IP', or 'IP/BP' for a dual grade; unknown text as typed (CAPITALS)."""
+	codes = split_grades(value)
+	return "/".join(codes) if codes else upper_text(value)
 
 
 def normalize_label_no(value):

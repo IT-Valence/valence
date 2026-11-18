@@ -31,7 +31,6 @@ MANUFACTURING_BUTTONS = (
 
 
 def ensure_quality_buttons():
-	_remove_old_labelling_section()
 	_ensure_buttons("Quality", BUTTONS)
 	_ensure_buttons("Manufacturing", MANUFACTURING_BUTTONS)
 
@@ -79,9 +78,3 @@ def _ensure_buttons(workspace, buttons):
 	if changed:
 		frappe.db.set_value("Workspace", ws.name, "content", json.dumps(content))  # also bumps modified
 		frappe.clear_cache()
-
-
-def _remove_old_labelling_section():
-	"""An earlier build had a separate 'Labelling' sub-page under Quality; buttons replace it."""
-	if frappe.db.get_value("Workspace", "Labelling", "module") == "Valence":
-		frappe.delete_doc("Workspace", "Labelling", ignore_permissions=True, force=True)

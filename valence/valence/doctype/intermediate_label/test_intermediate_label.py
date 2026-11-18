@@ -7,8 +7,10 @@ from frappe.utils import now
 
 from valence.valence.labelling.intermediate_tags import (
 	get_intermediate_tags,
+	on_stock_entry_cancel,
 	on_stock_entry_submit,
 	split_into_drums,
+	tag_buttons,
 	values_from_stock_entry,
 )
 
@@ -133,6 +135,39 @@ class TestIntermediateLabel(FrappeTestCase):
 		tag = frappe.get_doc("Intermediate Label", names[0])
 		self.assertEqual((tag.total_qty, tag.drum_size, tag.no_of_containers), (412, 25, 17))
 		self.assertFalse(tag.plant)  # production picks it
+
+	def test_final_stage_gets_no_tag(self):
+		frappe.db.set_value("Item", ITEM, "custom_is_final_stage", 1)
+		try:
+			self.assertFalse(tag_buttons(SE)["can_make"])
+			on_stock_entry_submit(frappe.get_doc("Stock Entry", SE))
+			self.assertFalse(frappe.db.exists("Intermediate Label", {"stock_entry": SE}))
+		finally:
+			frappe.db.set_value("Item", ITEM, "custom_is_final_stage", 0)
+		self.assertTrue(tag_buttons(SE)["can_make"])
+
+	def test_corrected_entry_moves_the_tag(self):
+		se = frappe.get_doc("Stock Entry", SE)
+		on_stock_entry_submit(se)
+		tag = frappe.get_doc("Intermediate Label", {"stock_entry": SE})
+		tag.plant, tag.material_status = "PR 1", "WET"
+		tag.save()
+		on_stock_entry_cancel(se)  # marks, never deletes
+		frappe.db.sql(
+			"insert into `tabStock Entry` (name, creation, modified, owner, modified_by, docstatus, company, purpose,"
+			" stock_entry_type, posting_date, amended_from) values (%s, %s, %s, 'Administrator', 'Administrator', 1, %s,"
+			" 'Manufacture', 'Manufacture', '2026-11-13', %s)",
+			(SE + "-1", now(), now(), se.company, SE),
+		)
+		frappe.get_doc(
+			doctype="Stock Entry Detail", parent=SE + "-1", parenttype="Stock Entry", parentfield="items", idx=1,
+			item_code=ITEM, qty=400, transfer_qty=400, conversion_factor=1, uom="Kg", stock_uom="Kg",
+			batch_no=BATCH, is_finished_item=1, docstatus=1,
+		).db_insert()
+		on_stock_entry_submit(frappe.get_doc("Stock Entry", SE + "-1"))
+		tags = frappe.get_all("Intermediate Label", filters={"batch_no": BATCH}, fields=["name", "stock_entry", "total_qty", "no_of_containers", "plant"])
+		self.assertEqual(len(tags), 1)
+		self.assertEqual((tags[0].stock_entry, tags[0].total_qty, tags[0].no_of_containers, tags[0].plant), (SE + "-1", 400, 16, "PR 1"))
 
 	# ---- printing
 	def test_print_pages(self):

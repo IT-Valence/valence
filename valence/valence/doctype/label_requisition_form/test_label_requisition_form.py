@@ -111,8 +111,23 @@ class TestLabelRequisitionForm(FrappeTestCase):
 		self.assertEqual(doc.grade, "BP")
 		self.assertEqual(doc.released_b_no, "TPHP00 9")
 
-	def test_unknown_grade_rejected(self):
-		self.assertRaises(frappe.ValidationError, _lrf, grade="XYZ")
+	def test_unknown_grade_saves_but_cannot_be_approved(self):
+		# older demo forms hold grades like "up": they must still open and save
+		doc = _lrf(grade="up")
+		self.assertEqual(doc.grade, "UP")
+		self.assertRaises(frappe.ValidationError, _approve, doc)
+
+	def test_dual_grade_kept(self):
+		# demo forms hold "ip/bp" and "ip,bp": not silently turned into IP
+		self.assertEqual(_lrf(grade="ip/bp").grade, "IP/BP")
+		self.assertEqual(_lrf(grade="ip,bp").grade, "IP/BP")
+		self.assertFalse(_lrf(grade="ip/bp").product_label_no)  # no single-grade master picked
+
+	def test_older_drum_numbers_do_not_lock_qa_out(self):
+		# a form saved before drum numbers were cleaned ("01/02 ", lower case) can still be approved
+		doc = _step(_lrf(), 1)
+		frappe.db.set_value("Label Requisition Form Item", doc.label_details[0].name, "drum_no", "01/02 ")
+		self.assertEqual(_step(_qa(doc), 2).docstatus, 1)
 
 	def test_weights_totals_and_observed(self):
 		doc = _lrf(drums=((25, 3.54), (8.4, 3.71)))

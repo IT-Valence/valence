@@ -10,7 +10,7 @@ import frappe
 from frappe.utils import cint, flt, formatdate, get_url, getdate
 
 from valence.valence.doctype.master_label.master_label import find_master_label
-from valence.valence.labelling.normalize import normalize_grade, upper_text
+from valence.valence.labelling.normalize import label_grade, normalize_grade, upper_text
 
 DEFAULTS = {
 	"product_labels_per_drum": 1,
@@ -174,7 +174,7 @@ def get_drum_labels(doc, which="all"):
 	if isinstance(doc, str):
 		doc = frappe.get_doc(frappe.parse_json(doc))
 	settings = label_settings()
-	grade = normalize_grade(doc.get("grade")) if doc.get("grade") else ""
+	grade = label_grade(doc.get("grade")) if doc.get("grade") else ""  # dual grade prints as IP/BP
 	item_name = frappe.db.get_value("Item", doc.get("production_item"), "item_name") if doc.get("production_item") else ""
 	product_ml = _master(doc, "Product", "product_label_no")
 	ident_ml = _master(doc, "Identification", "identification_label_no")
