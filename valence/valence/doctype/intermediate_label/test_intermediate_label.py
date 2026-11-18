@@ -143,6 +143,8 @@ class TestIntermediateLabel(FrappeTestCase):
 		self.assertEqual(len(tags), 17)
 		self.assertEqual(data["cols"], 2)
 		self.assertEqual(data["orientation"], "Landscape")
+		self.assertEqual((data["width_mm"], data["height_mm"], data["gap_mm"]), (127, 70, 10))  # real size, cutting gap
+		self.assertEqual(data["sheet_width_mm"], 264)
 		self.assertEqual([len(p) for p in data["pages"]], [2, 2, 2, 2, 1])  # 4 per A4 page, 2 x 2
 		self.assertEqual(tags[-1]["container"], "17 of 17")
 		self.assertEqual((tags[-1]["net"], tags[-1]["gross"]), ("12.000 Kg", "14.000 Kg"))

@@ -21,18 +21,21 @@ from valence.valence.labelling.normalize import upper_text
 DOCTYPE = "Intermediate Label"
 MAX_DRUMS = 500
 # A4 in mm; the template sets the same page margin for the PDF maker and the browser.
-A4_SHORT_MM, A4_LONG_MM, PAGE_MARGIN_MM, GAP_MM = 210, 297, 8, 3
+A4_SHORT_MM, A4_LONG_MM, PAGE_MARGIN_MM = 210, 297, 8
 LOGO_SHARE = 0.17  # part of the tag height for the logo row; the 11 text rows share the rest
+SCREEN_SHEET_MM = 168  # width Frappe's on-screen print preview gives the content
 
 DEFAULTS = {
 	"intermediate_item_group": "Intermediates",
 	"default_drum_size_kg": 25,
 	"default_tare_kg": 0,
 	"merge_last_drum_below_kg": 0,
-	# QA's tag sheet: 4 tags per A4, 2 across and 2 down on a landscape page.
+	# QA's Word tag sheet: tags of about 127 x 70 mm, 4 per A4 (2 across, 2 down on a
+	# landscape page) with room between them to cut each tag out.
 	"intermediate_tag_orientation": "Landscape",
-	"intermediate_tag_width_mm": 138,
-	"intermediate_tag_height_mm": 92,
+	"intermediate_tag_width_mm": 127,
+	"intermediate_tag_height_mm": 70,
+	"intermediate_tag_gap_mm": 10,
 	"intermediate_tag_sop_no": "S-SG-046",
 	"manufacturer_name": "Valence Labs Pvt Ltd",
 	"logo": "/files/VLPL Logo.jpg",
@@ -51,6 +54,11 @@ def tag_settings():
 	for key in ("default_drum_size_kg", "intermediate_tag_width_mm", "intermediate_tag_height_mm"):
 		if not flt(out[key]):
 			out[key] = DEFAULTS[key]
+	# A setting never saved reads back as 0; only a gap someone set to 0 means no gap.
+	if not flt(out["intermediate_tag_gap_mm"]) and not frappe.db.exists(
+		"Singles", {"doctype": "Labelling Settings", "field": "intermediate_tag_gap_mm"}
+	):
+		out["intermediate_tag_gap_mm"] = DEFAULTS["intermediate_tag_gap_mm"]
 	return out
 
 
@@ -226,13 +234,18 @@ def _landscape(s):
 	return (s.get("intermediate_tag_orientation") or "Landscape") == "Landscape"
 
 
+def _gap(s):
+	return max(0, flt(s.get("intermediate_tag_gap_mm")))
+
+
 def _grid(s):
-	"""Tags across and down an A4 page; the tags share the page width equally."""
-	width, height = flt(s["intermediate_tag_width_mm"]), flt(s["intermediate_tag_height_mm"])
+	"""Tags across and down an A4 page at their real size, with the cutting gap between."""
+	width, height, gap = flt(s["intermediate_tag_width_mm"]), flt(s["intermediate_tag_height_mm"]), _gap(s)
 	page_w, page_h = (A4_LONG_MM, A4_SHORT_MM) if _landscape(s) else (A4_SHORT_MM, A4_LONG_MM)
 	usable_w, usable_h = page_w - 2 * PAGE_MARGIN_MM, page_h - 2 * PAGE_MARGIN_MM
-	cols = max(1, int((usable_w + GAP_MM) // (width + GAP_MM)))
-	rows = max(1, int((usable_h + GAP_MM) // (height + GAP_MM)))
+	# 1 mm spare per row so rounding in the PDF maker never pushes a row onto the next page
+	cols = max(1, int((usable_w + gap) // (width + gap)))
+	rows = max(1, int((usable_h - 1 + gap) // (height + gap)))
 	return cols, rows
 
 
@@ -281,12 +294,16 @@ def get_intermediate_tags(doc):
 	pages = [tags[i : i + per_page] for i in range(0, len(tags), per_page)]
 	from valence.valence.labelling.drum_labels import logo_url
 
+	sheet_width = cols * flt(s["intermediate_tag_width_mm"]) + (cols - 1) * _gap(s)
+
 	return {
 		"pages": [[page[i : i + cols] for i in range(0, len(page), cols)] for page in pages],
 		"cols": cols,
 		"width_mm": flt(s["intermediate_tag_width_mm"]),
 		"height_mm": flt(s["intermediate_tag_height_mm"]),
-		"gap_mm": GAP_MM,
+		"gap_mm": _gap(s),
+		"sheet_width_mm": sheet_width,
+		"screen_zoom": round(min(1, SCREEN_SHEET_MM / sheet_width), 3),
 		"margin_mm": PAGE_MARGIN_MM,
 		"orientation": "Landscape" if _landscape(s) else "Portrait",
 		**_sizes(flt(s["intermediate_tag_height_mm"])),

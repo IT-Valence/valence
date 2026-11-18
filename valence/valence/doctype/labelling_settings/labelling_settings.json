@@ -34,6 +34,7 @@
   "intermediate_tag_orientation",
   "intermediate_tag_width_mm",
   "intermediate_tag_height_mm",
+  "intermediate_tag_gap_mm",
   "intermediate_tag_sop_no"
  ],
  "fields": [
@@ -80,22 +81,29 @@
   },
   {
    "default": "Landscape",
-   "description": "Landscape with 138 x 92 mm tags = 4 tags per A4 sheet (2 across, 2 down), as on QA's tag sheet.",
+   "description": "Landscape with 127 x 70 mm tags = 4 tags per A4 sheet (2 across, 2 down), as on QA's tag sheet.",
    "fieldname": "intermediate_tag_orientation",
    "fieldtype": "Select",
    "label": "Tag Page Orientation",
    "options": "Landscape\nPortrait"
   },
   {
-   "default": "138",
-   "description": "Tags share the page width equally; this decides how many go across (138 mm: 2 across a landscape A4).",
+   "default": "127",
+   "description": "Printed width of one tag. As many as fit go across the page.",
    "fieldname": "intermediate_tag_width_mm",
    "fieldtype": "Float",
    "label": "Tag Width (mm)"
   },
   {
-   "default": "92",
-   "description": "Text and rows grow with the height. 92 mm: 2 tags down a landscape A4.",
+   "default": "10",
+   "description": "Blank space between tags for cutting them apart, across and down.",
+   "fieldname": "intermediate_tag_gap_mm",
+   "fieldtype": "Float",
+   "label": "Gap Between Tags (mm)"
+  },
+  {
+   "default": "70",
+   "description": "Printed height of one tag; text and rows grow with it. As many as fit go down the page.",
    "fieldname": "intermediate_tag_height_mm",
    "fieldtype": "Float",
    "label": "Tag Height (mm)"
@@ -227,7 +235,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-11-18 16:00:00.000000",
+ "modified": "2026-11-18 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Valence",
  "name": "Labelling Settings",
